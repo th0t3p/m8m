@@ -2,6 +2,8 @@
 // Mem8 CLI entry point.
 
 import { Command } from 'commander';
+import { basename } from 'node:path';
+import { createInterface } from 'node:readline';
 import { initConfigDir, loadConfig, mem8HomeDir, saveConfig } from '../core/config.js';
 import {
   createSnapshot,
@@ -19,6 +21,7 @@ import {
 } from '../core/db.js';
 import { diffMemories, diffSnapshots } from '../core/diff.js';
 import { importBatch, importChatGPTExport, importClaudeExport, importLocalMemoryFile } from '../core/importer.js';
+import { formatDiscovery, isImportablePath, scanForMemoryFiles } from '../core/scanner.js';
 import { startDashboard } from '../dashboard/server.js';
 import { startMcpServer } from '../mcp/server.js';
 import { addMem8ToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
@@ -44,6 +47,16 @@ function ensureDb() {
   const config = loadConfig();
   initDatabase(config.db_path);
   return config;
+}
+
+function confirm(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolvePromise) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolvePromise(/^y(es)?$/i.test(answer.trim()));
+    });
+  });
 }
 
 function parseValue(v: string): unknown {
@@ -223,6 +236,51 @@ program
     else entries = importLocalMemoryFile(file, opts.platform ?? 'local_file');
     const result = importBatch(entries, 'manual_import');
     console.log(`Imported ${result.imported}, updated ${result.updated}, flagged ${result.flagged}`);
+  });
+
+// --- Scan ---------------------------------------------------------------
+program
+  .command('scan')
+  .description('Discover + import memory files from all AI providers')
+  .option('--dry-run', 'Only show discovered files, do not import')
+  .option('--yes', 'Import without prompting for confirmation')
+  .action(async (opts: { dryRun?: boolean; yes?: boolean }) => {
+    ensureDb();
+    const files = scanForMemoryFiles();
+    console.log(formatDiscovery(files));
+
+    if (opts.dryRun) return;
+
+    const importable = files.filter((f) => isImportablePath(f.path));
+    if (importable.length === 0) {
+      console.log('\n  No importable memory files found.');
+      return;
+    }
+
+    if (!opts.yes) {
+      const ok = await confirm(`\n  Import ${importable.length} file(s)? [y/N] `);
+      if (!ok) {
+        console.log('  Aborted.');
+        return;
+      }
+    }
+
+    let imported = 0;
+    let updated = 0;
+    let flagged = 0;
+    for (const f of importable) {
+      const entries = importLocalMemoryFile(f.path, f.platform);
+      const result = importBatch(entries, 'manual_import');
+      const flagNote = result.flagged > 0 ? `, ${result.flagged} flagged ⚠` : '';
+      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — ${result.imported} new, ${result.updated} updated${flagNote}`);
+      imported += result.imported;
+      updated += result.updated;
+      flagged += result.flagged;
+    }
+
+    console.log('');
+    console.log(`  Done: ${imported} imported, ${updated} updated, ${flagged} flagged`);
+    if (flagged > 0) console.log('  Run `mem8 audit` to review flagged entries.');
   });
 
 // --- Snapshot -----------------------------------------------------------

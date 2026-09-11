@@ -18,7 +18,7 @@ export type EventSeverity = 'info' | 'warning' | 'critical';
 
 export type DetectionSource =
   | 'mcp_live' | 'file_watcher' | 'periodic_snapshot'
-  | 'manual_import' | 'cli';
+  | 'manual_import' | 'cli' | 'dashboard';
 
 export type ChangeType = 'created' | 'modified' | 'deleted' | 'status_changed';
 

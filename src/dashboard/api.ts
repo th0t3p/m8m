@@ -44,22 +44,22 @@ export function registerApi(): Router {
 
   router.post('/api/memories/:id/flag', (req, res) => {
     const reason = req.body?.reason ?? 'Flagged from dashboard';
-    const entry = flagMemory(req.params.id, reason, 'cli');
+    const entry = flagMemory(req.params.id, reason, 'dashboard');
     res.json(entry);
   });
 
   router.post('/api/memories/:id/dismiss', (req, res) => {
-    unflagMemory(req.params.id, 'cli');
+    unflagMemory(req.params.id, 'dashboard');
     res.json({ ok: true });
   });
 
   router.post('/api/memories/:id/quarantine', (req, res) => {
-    updateMemoryStatus(req.params.id, 'quarantined', 'cli');
+    updateMemoryStatus(req.params.id, 'quarantined', 'dashboard');
     res.json({ ok: true });
   });
 
   router.post('/api/memories/:id/restore', (req, res) => {
-    updateMemoryStatus(req.params.id, 'active', 'cli');
+    updateMemoryStatus(req.params.id, 'active', 'dashboard');
     res.json({ ok: true });
   });
 

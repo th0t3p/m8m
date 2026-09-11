@@ -90,6 +90,7 @@ mem8 audit
 | `mem8 restore <id>` | Restore from quarantine |
 | `mem8 dismiss <id>` | Clear flags + dismiss |
 | `mem8 import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
+| `mem8 scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
 | `mem8 snapshot [--platform <p>]` | Manual snapshot for diffing |
 | `mem8 diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
 | `mem8 audit [--severity critical] [--resolved]` | List security events |
