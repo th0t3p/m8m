@@ -34,9 +34,9 @@ body {
   top: 0;
 }
 
-.brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; }
-.brand .brand-logo { height: 40px; width: 40px; margin-right: 10px; border-radius: 8px; }
-.brand .tagline { font-weight: 400; color: var(--text-dim); font-size: 13px; margin-left: 6px; }
+.brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.brand .brand-logo { height: 1.3em; width: 1.3em; border-radius: 6px; flex-shrink: 0; }
+.brand .tagline { font-weight: 400; color: var(--text-dim); font-size: 13px; }
 
 .tabs { display: flex; gap: 4px; }
 .tab {
