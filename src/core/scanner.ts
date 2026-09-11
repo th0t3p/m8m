@@ -45,6 +45,7 @@ const TARGETS: MemoryFileTarget[] = [
   // Codex
   { path: '~/.codex/config.toml', platform: 'local_file', provider: 'Codex', description: 'Config' },
   { path: '~/.codex/instructions.md', platform: 'local_file', provider: 'Codex', description: 'Global instructions' },
+  { path: '~/.codex/AGENTS.md', platform: 'local_file', provider: 'Codex', description: 'Global agent rules' },
   { path: './codex.md', platform: 'local_file', provider: 'Codex', description: 'Project instructions' },
   // Aider
   { path: './.aider.conf.yml', platform: 'local_file', provider: 'Aider', description: 'Project config' },
