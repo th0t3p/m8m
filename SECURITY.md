@@ -13,7 +13,7 @@ for vulnerabilities.
 
 ## Scope
 
-M8m handles sensitive data — AI memories, which may contain personal
+m8m handles sensitive data — AI memories, which may contain personal
 information, credentials, and behavioral patterns. We take the security of this
 data seriously.
 

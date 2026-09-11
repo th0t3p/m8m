@@ -1,6 +1,6 @@
-# Contributing to M8m
+# Contributing to m8m
 
-Welcome! M8m is open source and we appreciate contributions.
+Welcome! m8m is open source and we appreciate contributions.
 
 ## Good first contributions
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// M8m CLI entry point.
+// m8m CLI entry point.
 
 import { Command } from 'commander';
 import { basename } from 'node:path';
@@ -110,7 +110,7 @@ program
     initConfigDir();
     const config = loadConfig();
     initDatabase(config.db_path);
-    console.log(`M8m initialized at ${m8mHomeDir()}`);
+    console.log(`m8m initialized at ${m8mHomeDir()}`);
   });
 
 // --- Status -------------------------------------------------------------

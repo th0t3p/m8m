@@ -149,7 +149,7 @@ function formatBytes(bytes: number): string {
 export function formatDiscovery(files: DiscoveredMemoryFile[]): string {
   const groups = groupByProvider(files);
   const lines: string[] = [
-    '  M8m — Memory Scanner',
+    '  m8m — Memory Scanner',
     '  ─────────────────────',
     `  Found ${files.length} file(s) across ${groups.size} provider(s)`,
   ];

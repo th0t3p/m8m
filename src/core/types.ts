@@ -1,4 +1,4 @@
-// Core type definitions for M8m.
+// Core type definitions for m8m.
 
 export type SourceType =
   | 'conversation' | 'document' | 'email' | 'web_page'

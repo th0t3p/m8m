@@ -20,7 +20,7 @@ export function startDashboard(port?: number): void {
 
   const listenPort = port ?? config.dashboard_port;
   app.listen(listenPort, () => {
-    console.log(`M8m dashboard running at http://localhost:${listenPort}`);
+    console.log(`m8m dashboard running at http://localhost:${listenPort}`);
   });
 }
 

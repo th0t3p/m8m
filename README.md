@@ -1,4 +1,4 @@
-# M8m
+# m8m
 
 [![npm version](https://img.shields.io/npm/v/@th0t3p/m8m)](https://www.npmjs.com/package/@th0t3p/m8m)
 [![license](https://img.shields.io/github/license/th0t3p/m8m)](LICENSE)
@@ -6,7 +6,7 @@
 
 AI memory observability, provenance & security. Eight eyes. Nothing gets past.
 
-M8m monitors what your AI agents remember about you — where each memory came
+m8m monitors what your AI agents remember about you — where each memory came
 from, what changed, and whether anything looks suspicious. Four cooperating
 pieces share one local SQLite database:
 
@@ -18,7 +18,7 @@ pieces share one local SQLite database:
 Phase 1 is entirely local: SQLite storage, pattern-based analysis, and **zero**
 LLM or network calls in the analyzer itself.
 
-## Why M8m?
+## Why m8m?
 
 Your AI remembers everything about you — preferences, habits, work patterns,
 relationships. But do you know what it remembers? Can you tell if those
@@ -31,7 +31,7 @@ memories have been tampered with?
 - More capable models are **more vulnerable**, not less — GPT-5.4 showed
   87.5% injection success rate
 
-M8m gives you visibility and control. Think of it as `git log` for your
+m8m gives you visibility and control. Think of it as `git log` for your
 AI's memory.
 
 ## Install
@@ -106,7 +106,7 @@ m8m audit
 ```bash
 $ m8m status
 
-  M8m — Memory Observatory
+  m8m — Memory Observatory
   ─────────────────────────
   Total memories:     142
   Active:             138
@@ -123,7 +123,7 @@ $ m8m status
 
 ## MCP server
 
-M8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`, and
+m8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`, and
 `m8m_flag` over stdio.
 
 ### Easiest: auto-configure
