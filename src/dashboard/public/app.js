@@ -177,7 +177,7 @@ async function overview() {
     el('div', { class: 'stat' }, el('div', { class: 'value small', text: String(stats.flagged) }), el('div', { class: 'label', text: 'Flagged' })),
     el('div', { class: 'stat' },
       el('div', { class: 'value accent', text: String(unresolved.length) }),
-      el('div', { class: 'label', text: `Unresolved (${bySev.critical} crit · ${bySev.warning} warn · ${bySev.info} info)`) },
+      el('div', { class: 'label', text: `Unresolved (${bySev.critical} crit · ${bySev.warning} warn · ${bySev.info} info)` }),
     ),
   );
   wrap.appendChild(grid);
