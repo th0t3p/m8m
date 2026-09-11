@@ -1,5 +1,5 @@
 {
-  "name": "mem8",
+  "name": "@th0t3p/mem8",
   "version": "0.1.0",
   "description": "AI memory observability, provenance & security. Eight eyes. Nothing gets past.",
   "license": "MIT",

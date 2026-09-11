@@ -19,7 +19,7 @@ LLM or network calls in the analyzer itself.
 ### From npm (published) — one command
 
 ```bash
-npm install -g mem8
+npm install -g @th0t3p/mem8
 ```
 
 ### From source (this repo) — one command
