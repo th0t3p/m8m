@@ -264,6 +264,12 @@ Example findings from `m8m audit`:
 - `npm test` — run the vitest suite
 - `npm run dev` — tsx watch on the CLI (see `scripts/dev.sh`)
 
+## Support
+
+If m8m is useful to you, consider buying me a coffee:
+
+**[☕ Support m8m on Buy Me a Coffee](https://buymeacoffee.com/th0t3p)**
+
 ## License
 
 MIT
