@@ -2,6 +2,34 @@
   "name": "mem8",
   "version": "0.1.0",
   "description": "AI memory observability, provenance & security. Eight eyes. Nothing gets past.",
+  "license": "MIT",
+  "author": "th0t3p <th0t3p@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/th0t3p/mem8.git"
+  },
+  "bugs": {
+    "url": "https://github.com/th0t3p/mem8/issues"
+  },
+  "homepage": "https://github.com/th0t3p/mem8#readme",
+  "keywords": [
+    "mcp",
+    "memory",
+    "ai",
+    "observability",
+    "security",
+    "provenance",
+    "cli",
+    "sqlite"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "bin": {
     "mem8": "./dist/cli/index.js"
@@ -9,6 +37,7 @@
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",
     "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm test",
     "dev": "tsx watch src/cli/index.ts",
     "mcp": "tsx src/mcp/server.ts",
     "dashboard": "tsx src/dashboard/server.ts",
