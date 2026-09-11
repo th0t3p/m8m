@@ -819,3 +819,16 @@ document.querySelectorAll('.tab').forEach((btn) => {
 });
 
 refresh();
+
+// Exported for tests.
+export {
+  trustColor,
+  platformColor,
+  severityColor,
+  timeAgo,
+  truncate,
+  escapeHtml,
+  hexAlpha,
+  periodOfLocal,
+  startOfWeekLocal,
+};
