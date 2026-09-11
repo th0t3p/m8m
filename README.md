@@ -99,13 +99,54 @@ $ mem8 status
 
 ## MCP server
 
-Point your agent client at the stdio server (`dist/mcp/server.js`) to expose
-`mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`, and `mem8_flag`.
+Mem8 exposes `mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`, and
+`mem8_flag` over stdio.
 
-### DeepSeek Harness (DSH)
+### Easiest: auto-configure
 
-Add a `dsh-mcp-client` instance to your profile's `cordis.patch.yml`
-(e.g. `~/.dsh/profiles/<name>/cordis.patch.yml`):
+```bash
+mem8 mcp add codex      # or: claude, cursor, dsh
+```
+
+This writes the right config entry into the client's config file for you
+(Codex `~/.codex/config.toml`, Claude `~/.claude.json`, Cursor
+`~/.cursor/mcp.json`, DSH `$DSH_HOME/cordis.patch.yml`). Add
+`--data-dir /path` to bake in a `MEM8_HOME` override.
+
+Or use your client's native command:
+
+```bash
+codex mcp add mem8 -- npx -y @th0t3p/mem8 mcp
+claude mcp add mem8 -- npx -y @th0t3p/mem8 mcp
+```
+
+### Manual (equivalent config)
+
+The server is fetched from npm on demand via `npx`, so no clone or build is
+needed.
+
+**OpenAI Codex** — `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.mem8]
+command = "npx"
+args = ["-y", "@th0t3p/mem8", "mcp"]
+startup_timeout_sec = 30
+```
+
+Tools appear as `mem8_store`, etc.
+
+**Claude Code / Cursor** — `mcpServers` JSON:
+
+```json
+{
+  "mcpServers": {
+    "mem8": { "command": "npx", "args": ["-y", "@th0t3p/mem8", "mcp"] }
+  }
+}
+```
+
+**DeepSeek Harness (DSH)** — `$DSH_HOME/cordis.patch.yml`:
 
 ```yaml
 - insert:
@@ -114,30 +155,12 @@ Add a `dsh-mcp-client` instance to your profile's `cordis.patch.yml`
       config:
         serverName: mem8
         transport: stdio
-        command: node
-        args:
-          - /absolute/path/to/mem8/dist/mcp/server.js
-        env:
-          MEM8_HOME: /absolute/path/to/mem8-data   # optional
+        command: npx
+        args: ['-y', '@th0t3p/mem8', 'mcp']
 ```
 
 Tools appear as `mcp__mem8__mem8_store`, etc.
 
-### OpenAI Codex
-
-Append to `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.mem8]
-command = "node"
-args = ["/absolute/path/to/mem8/dist/mcp/server.js"]
-startup_timeout_sec = 30
-
-[mcp_servers.mem8.env]
-MEM8_HOME = "/absolute/path/to/mem8-data"   # optional
-```
-
-Tools appear as `mem8_store`, etc.
 
 ## Dashboard
 

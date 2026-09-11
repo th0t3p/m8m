@@ -21,6 +21,7 @@ import { diffMemories, diffSnapshots } from '../core/diff.js';
 import { importBatch, importChatGPTExport, importClaudeExport, importLocalMemoryFile } from '../core/importer.js';
 import { startDashboard } from '../dashboard/server.js';
 import { startMcpServer } from '../mcp/server.js';
+import { addMem8ToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
 import { startWatcher } from '../watcher/watcher.js';
 import {
   formatDiff,
@@ -292,11 +293,35 @@ program
   });
 
 // --- MCP ----------------------------------------------------------------
-program
+const mcpCmd = program
   .command('mcp')
   .description('Start the MCP server (stdio)')
   .action(async () => {
     await startMcpServer();
+  });
+
+mcpCmd
+  .command('add <client>')
+  .description('Add mem8 to an MCP client config (codex | claude | cursor | dsh)')
+  .option('--data-dir <path>', 'Set MEM8_HOME in the generated config')
+  .action((client: string, opts: { dataDir?: string }) => {
+    if (!SUPPORTED_CLIENTS.includes(client as McpClient)) {
+      console.error(`Unknown client "${client}". Supported: ${SUPPORTED_CLIENTS.join(', ')}`);
+      process.exit(1);
+    }
+    const result = addMem8ToClient(client as McpClient, opts.dataDir);
+    if (result.already) {
+      console.log(`mem8 is already configured for ${client} (${result.path}).`);
+      return;
+    }
+    if (result.manualSnippet) {
+      console.log(`Could not safely edit ${result.path} (it already has content).`);
+      console.log('Add this entry to it manually:\n');
+      console.log(result.manualSnippet);
+      return;
+    }
+    console.log(`✓ Wrote mem8 MCP config to ${result.path}`);
+    console.log(`  Restart ${client} to pick it up.`);
   });
 
 // --- Config -------------------------------------------------------------
