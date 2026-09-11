@@ -34,7 +34,8 @@ body {
   top: 0;
 }
 
-.brand { font-weight: 700; font-size: 18px; }
+.brand { font-weight: 700; font-size: 18px; display: flex; align-items: center; }
+.brand .brand-logo { height: 26px; width: 26px; margin-right: 8px; border-radius: 6px; }
 .brand .tagline { font-weight: 400; color: var(--text-dim); font-size: 13px; margin-left: 6px; }
 
 .tabs { display: flex; gap: 4px; }
