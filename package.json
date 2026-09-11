@@ -1,17 +1,17 @@
 {
-  "name": "@th0t3p/mem8",
+  "name": "@th0t3p/m8m",
   "version": "0.1.0",
   "description": "AI memory observability, provenance & security. Eight eyes. Nothing gets past.",
   "license": "MIT",
   "author": "th0t3p <th0t3p@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/th0t3p/mem8.git"
+    "url": "git+https://github.com/th0t3p/m8m.git"
   },
   "bugs": {
-    "url": "https://github.com/th0t3p/mem8/issues"
+    "url": "https://github.com/th0t3p/m8m/issues"
   },
-  "homepage": "https://github.com/th0t3p/mem8#readme",
+  "homepage": "https://github.com/th0t3p/m8m#readme",
   "keywords": [
     "mcp",
     "memory",
@@ -32,7 +32,7 @@
   ],
   "type": "module",
   "bin": {
-    "mem8": "./dist/cli/index.js"
+    "m8m": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",

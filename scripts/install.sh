@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command install for mem8 (from a clone): install dependencies, build, and link.
+# One-command install for m8m (from a clone): install dependencies, build, and link.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,7 +15,7 @@ fi
 
 is_writable_dir() {
   [ -d "$1" ] || return 1
-  local probe="$1/.mem8-wtest"
+  local probe="$1/.m8m-wtest"
   if touch "$probe" 2>/dev/null; then
     rm -f "$probe"
     return 0
@@ -39,25 +39,25 @@ find_writable_path_dir() {
 install_shim() {
   local dir="$1"
   mkdir -p "$dir"
-  cat > "$dir/mem8" <<EOF
+  cat > "$dir/m8m" <<EOF
 #!/usr/bin/env bash
-# mem8 CLI shim (installed by scripts/install.sh)
-export MEM8_HOME="\${MEM8_HOME:-$REPO_ROOT/.mem8-data}"
+# m8m CLI shim (installed by scripts/install.sh)
+export M8M_HOME="\${M8M_HOME:-$REPO_ROOT/.m8m-data}"
 exec node "$REPO_ROOT/dist/cli/index.js" "\$@"
 EOF
-  chmod +x "$dir/mem8"
+  chmod +x "$dir/m8m"
 }
 
-echo "→ Linking mem8 onto your PATH…"
+echo "→ Linking m8m onto your PATH…"
 if npm link >/dev/null 2>&1; then
-  echo "✓ Installed globally. Try: mem8 --help"
+  echo "✓ Installed globally. Try: m8m --help"
 else
   echo "→ Global link failed (read-only global bin); installing a local shim…"
   shim_dir="$(find_writable_path_dir || true)"
   if [ -n "${shim_dir:-}" ]; then
     install_shim "$shim_dir"
-    echo "✓ Installed mem8 shim at $shim_dir/mem8"
-    echo "  Run 'hash -r' (or open a new shell), then: mem8 --help"
+    echo "✓ Installed m8m shim at $shim_dir/m8m"
+    echo "  Run 'hash -r' (or open a new shell), then: m8m --help"
   else
     echo "✗ No writable directory found on PATH. Run directly:"
     echo "  node $REPO_ROOT/dist/cli/index.js --help"

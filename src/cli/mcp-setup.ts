@@ -1,4 +1,4 @@
-// Auto-configure mem8 in common MCP clients (Codex, Claude Code, Cursor, DSH).
+// Auto-configure m8m in common MCP clients (Codex, Claude Code, Cursor, DSH).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -21,8 +21,8 @@ interface ServerSpec {
 }
 
 function serverSpec(dataDir?: string): ServerSpec {
-  const spec: ServerSpec = { command: 'npx', args: ['-y', '@th0t3p/mem8', 'mcp'] };
-  if (dataDir) spec.env = { MEM8_HOME: dataDir };
+  const spec: ServerSpec = { command: 'npx', args: ['-y', '@th0t3p/m8m', 'mcp'] };
+  if (dataDir) spec.env = { M8M_HOME: dataDir };
   return spec;
 }
 
@@ -68,12 +68,12 @@ function dshPath(): string {
 function addCodex(spec: ServerSpec): AddResult {
   const file = codexPath();
   ensureDir(file);
-  if (existsSync(file) && /\[mcp_servers\.mem8\]/.test(readFileSync(file, 'utf8'))) {
+  if (existsSync(file) && /\[mcp_servers\.m8m\]/.test(readFileSync(file, 'utf8'))) {
     return { path: file, already: true };
   }
-  let section = `\n[mcp_servers.mem8]\ncommand = "npx"\nargs = ["-y", "@th0t3p/mem8", "mcp"]\nstartup_timeout_sec = 30\n`;
+  let section = `\n[mcp_servers.m8m]\ncommand = "npx"\nargs = ["-y", "@th0t3p/m8m", "mcp"]\nstartup_timeout_sec = 30\n`;
   if (spec.env) {
-    section += `\n[mcp_servers.mem8.env]\n`;
+    section += `\n[mcp_servers.m8m.env]\n`;
     for (const [k, v] of Object.entries(spec.env)) section += `${k} = "${v}"\n`;
   }
   const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
@@ -86,8 +86,8 @@ function addClaude(spec: ServerSpec): AddResult {
   ensureDir(file);
   const data = readJson(file);
   const servers = (data.mcpServers as Record<string, unknown>) ?? {};
-  if (servers.mem8) return { path: file, already: true };
-  servers.mem8 = jsonServerValue(spec);
+  if (servers.m8m) return { path: file, already: true };
+  servers.m8m = jsonServerValue(spec);
   data.mcpServers = servers;
   writeFileSync(file, JSON.stringify(data, null, 2) + '\n', 'utf8');
   return { path: file, already: false };
@@ -98,8 +98,8 @@ function addCursor(spec: ServerSpec): AddResult {
   ensureDir(file);
   const data = readJson(file);
   const servers = (data.mcpServers as Record<string, unknown>) ?? {};
-  if (servers.mem8) return { path: file, already: true };
-  servers.mem8 = jsonServerValue(spec);
+  if (servers.m8m) return { path: file, already: true };
+  servers.m8m = jsonServerValue(spec);
   data.mcpServers = servers;
   writeFileSync(file, JSON.stringify(data, null, 2) + '\n', 'utf8');
   return { path: file, already: false };
@@ -108,10 +108,10 @@ function addCursor(spec: ServerSpec): AddResult {
 function dshYaml(spec: ServerSpec): string {
   const lines: string[] = [
     '- insert:',
-    '    - id: mcp-mem8',
+    '    - id: mcp-m8m',
     "      name: '@deepseek-ai/dsh-mcp-client'",
     '      config:',
-    '        serverName: mem8',
+    '        serverName: m8m',
     '        transport: stdio',
     `        command: ${spec.command}`,
     '        args:',
@@ -132,14 +132,14 @@ function addDsh(spec: ServerSpec): AddResult {
     writeFileSync(file, dshYaml(spec), 'utf8');
     return { path: file, already: false };
   }
-  if (existing.includes('mcp-mem8')) {
+  if (existing.includes('mcp-m8m')) {
     return { path: file, already: true };
   }
   // Existing, non-empty patch — hand the user the exact YAML to merge in.
   return { path: file, already: false, manualSnippet: dshYaml(spec) };
 }
 
-export function addMem8ToClient(client: McpClient, dataDir?: string): AddResult {
+export function addM8mToClient(client: McpClient, dataDir?: string): AddResult {
   const spec = serverSpec(dataDir);
   switch (client) {
     case 'codex':

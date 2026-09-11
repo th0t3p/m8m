@@ -7,7 +7,7 @@ import chokidar from 'chokidar';
 import { deleteMemory, getAllMemories, getDb, upsertMemory } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
 import { expandHome } from '../core/config.js';
-import type { Mem8Config, SourcePlatform } from '../core/types.js';
+import type { M8mConfig, SourcePlatform } from '../core/types.js';
 import { detectFileFormat, parseJsonMemoryFile, parseMarkdownMemoryFile } from './parsers.js';
 
 const DEFAULT_WATCH_PATHS = [
@@ -94,11 +94,11 @@ function handleFileChange(path: string, platform: string): void {
   }
 
   updateWatchTarget(path, hash);
-  console.log(`[mem8 watcher] ${path}: ${parsed.length} entries (platform=${platform})`);
+  console.log(`[m8m watcher] ${path}: ${parsed.length} entries (platform=${platform})`);
 }
 
 /** Start watching configured memory files for changes. Long-running. */
-export async function startWatcher(config: Mem8Config): Promise<void> {
+export async function startWatcher(config: M8mConfig): Promise<void> {
   const paths = new Set<string>();
   for (const p of [...DEFAULT_WATCH_PATHS, ...HOME_WATCH_PATHS, ...config.watch_paths]) {
     paths.add(resolve(expandHome(p)));
@@ -106,7 +106,7 @@ export async function startWatcher(config: Mem8Config): Promise<void> {
 
   const existingPaths = [...paths].filter((p) => existsSync(p));
   if (existingPaths.length === 0) {
-    console.log('[mem8 watcher] No watch paths exist. Nothing to monitor.');
+    console.log('[m8m watcher] No watch paths exist. Nothing to monitor.');
     return;
   }
 
@@ -124,5 +124,5 @@ export async function startWatcher(config: Mem8Config): Promise<void> {
   const watcher = chokidar.watch(existingPaths, { ignoreInitial: true, persistent: true });
   watcher.on('change', (p) => handleFileChange(p, inferPlatform(p)));
   watcher.on('add', (p) => handleFileChange(p, inferPlatform(p)));
-  console.log(`[mem8 watcher] Watching ${existingPaths.length} path(s). Ctrl-C to stop.`);
+  console.log(`[m8m watcher] Watching ${existingPaths.length} path(s). Ctrl-C to stop.`);
 }

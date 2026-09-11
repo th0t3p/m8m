@@ -12,7 +12,7 @@ export interface McpToolDef {
 
 export const TOOLS: McpToolDef[] = [
   {
-    name: 'mem8_store',
+    name: 'm8m_store',
     description:
       'Store a memory observation. Call this when you learn something new about the user that should be remembered across sessions.',
     schema: z.object({
@@ -25,7 +25,7 @@ export const TOOLS: McpToolDef[] = [
     handler: (args) => handleStore(args),
   },
   {
-    name: 'mem8_search',
+    name: 'm8m_search',
     description: 'Search stored memories by keyword. Returns relevant memories about the user.',
     schema: z.object({
       query: z.string().describe('Search query'),
@@ -34,7 +34,7 @@ export const TOOLS: McpToolDef[] = [
     handler: (args) => handleSearch(args),
   },
   {
-    name: 'mem8_recent',
+    name: 'm8m_recent',
     description: 'Get recently added or modified memories.',
     schema: z.object({
       limit: z.number().optional().describe('Max results (default 10)'),
@@ -43,13 +43,13 @@ export const TOOLS: McpToolDef[] = [
     handler: (args) => handleRecent(args),
   },
   {
-    name: 'mem8_status',
+    name: 'm8m_status',
     description: 'Get memory store status: total count, flagged items, recent changes.',
     schema: z.object({}),
     handler: () => handleStatus(),
   },
   {
-    name: 'mem8_flag',
+    name: 'm8m_flag',
     description: 'Flag a specific memory entry as suspicious.',
     schema: z.object({
       memory_id: z.string(),

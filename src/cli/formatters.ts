@@ -6,7 +6,7 @@ import type {
   ChangelogEntry,
   MemoryDiff,
   MemoryEntry,
-  Mem8Stats,
+  M8mStats,
   SecurityEvent,
 } from '../core/types.js';
 
@@ -35,10 +35,10 @@ export function statusColor(status: string): string {
   }
 }
 
-export function formatStatBlock(stats: Mem8Stats, unresolvedEvents: number): string {
+export function formatStatBlock(stats: M8mStats, unresolvedEvents: number): string {
   const lines: string[] = [];
   lines.push('');
-  lines.push(chalk.bold('  Mem8 — Memory Observatory'));
+  lines.push(chalk.bold('  M8m — Memory Observatory'));
   lines.push(chalk.gray('  ─────────────────────────'));
   lines.push(`  Total memories:     ${stats.total}`);
   lines.push(`  Active:             ${stats.active}`);

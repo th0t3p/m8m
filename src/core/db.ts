@@ -16,7 +16,7 @@ import type {
   MemoryFilters,
   MemoryFlag,
   MemoryStatus,
-  Mem8Stats,
+  M8mStats,
   SecurityEvent,
   SecurityEventFilters,
   Snapshot,
@@ -620,7 +620,7 @@ export function resolveSecurityEvent(id: string, resolution: string): void {
 // Stats
 // ---------------------------------------------------------------------------
 
-export function getStats(): Mem8Stats {
+export function getStats(): M8mStats {
   const d = requireDb();
   const count = (sql: string, ...params: unknown[]): number => {
     const row = d.prepare(sql).get(...params) as any;

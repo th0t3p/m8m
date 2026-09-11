@@ -1,4 +1,4 @@
-// Core type definitions for Mem8.
+// Core type definitions for M8m.
 
 export type SourceType =
   | 'conversation' | 'document' | 'email' | 'web_page'
@@ -95,8 +95,8 @@ export interface MemoryDiff {
   unchanged_count: number;
 }
 
-export interface Mem8Config {
-  db_path: string;                    // Default: ~/.mem8/mem8.db
+export interface M8mConfig {
+  db_path: string;                    // Default: ~/.m8m/m8m.db
   watch_paths: string[];              // Paths to watch for memory file changes
   dashboard_port: number;             // Default: 8808
   auto_snapshot_interval_minutes: number;  // Default: 60
@@ -120,7 +120,7 @@ export interface SecurityEventFilters {
   resolved?: boolean;
 }
 
-export interface Mem8Stats {
+export interface M8mStats {
   total: number;
   active: number;
   quarantined: number;

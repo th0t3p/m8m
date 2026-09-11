@@ -6,14 +6,14 @@ Please report security issues **privately** — do not open a public GitHub issu
 for vulnerabilities.
 
 - **Preferred:** open a GitHub Security Advisory at
-  https://github.com/th0t3p/mem8/security/advisories/new
+  https://github.com/th0t3p/m8m/security/advisories/new
   (repo → Security → Report a vulnerability).
 - We aim to respond within 48 hours.
 - We will coordinate disclosure timing with you.
 
 ## Scope
 
-Mem8 handles sensitive data — AI memories, which may contain personal
+M8m handles sensitive data — AI memories, which may contain personal
 information, credentials, and behavioral patterns. We take the security of this
 data seriously.
 
@@ -33,7 +33,7 @@ Out of scope:
 ## Architecture security notes
 
 - Phase 1 is entirely local. No data leaves your machine.
-- The SQLite database is stored at `~/.mem8/mem8.db` with default filesystem
+- The SQLite database is stored at `~/.m8m/m8m.db` with default filesystem
   permissions.
 - The MCP server runs over stdio (no network listener).
 - The dashboard listens on `localhost` only (not exposed to the network).

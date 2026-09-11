@@ -1,12 +1,12 @@
-# Mem8
+# M8m
 
-[![npm version](https://img.shields.io/npm/v/@th0t3p/mem8)](https://www.npmjs.com/package/@th0t3p/mem8)
-[![license](https://img.shields.io/github/license/th0t3p/mem8)](LICENSE)
-[![tests](https://img.shields.io/github/actions/workflow/status/th0t3p/mem8/test.yml)](https://github.com/th0t3p/mem8/actions/workflows/test.yml)
+[![npm version](https://img.shields.io/npm/v/@th0t3p/m8m)](https://www.npmjs.com/package/@th0t3p/m8m)
+[![license](https://img.shields.io/github/license/th0t3p/m8m)](LICENSE)
+[![tests](https://img.shields.io/github/actions/workflow/status/th0t3p/m8m/test.yml)](https://github.com/th0t3p/m8m/actions/workflows/test.yml)
 
 AI memory observability, provenance & security. Eight eyes. Nothing gets past.
 
-Mem8 monitors what your AI agents remember about you — where each memory came
+M8m monitors what your AI agents remember about you — where each memory came
 from, what changed, and whether anything looks suspicious. Four cooperating
 pieces share one local SQLite database:
 
@@ -18,7 +18,7 @@ pieces share one local SQLite database:
 Phase 1 is entirely local: SQLite storage, pattern-based analysis, and **zero**
 LLM or network calls in the analyzer itself.
 
-## Why Mem8?
+## Why M8m?
 
 Your AI remembers everything about you — preferences, habits, work patterns,
 relationships. But do you know what it remembers? Can you tell if those
@@ -31,7 +31,7 @@ memories have been tampered with?
 - More capable models are **more vulnerable**, not less — GPT-5.4 showed
   87.5% injection success rate
 
-Mem8 gives you visibility and control. Think of it as `git log` for your
+M8m gives you visibility and control. Think of it as `git log` for your
 AI's memory.
 
 ## Install
@@ -39,7 +39,7 @@ AI's memory.
 ### From npm (published) — one command
 
 ```bash
-npm install -g @th0t3p/mem8
+npm install -g @th0t3p/m8m
 ```
 
 ### From source (this repo) — one command
@@ -48,7 +48,7 @@ npm install -g @th0t3p/mem8
 ./scripts/install.sh
 ```
 
-That installs dependencies, builds, and runs `npm link` so `mem8` is on your
+That installs dependencies, builds, and runs `npm link` so `m8m` is on your
 `PATH`. (Equivalent manual steps: `npm install` then `npm install -g .`.)
 
 ### Run without installing
@@ -61,52 +61,52 @@ npx tsx src/cli/index.ts --help
 The first command requires `npm run build` first; the second runs TypeScript
 directly with no build.
 
-> **Data location:** everything lives in `~/.mem8/` by default. If `~` is
-> read-only (e.g. some sandboxes), set `MEM8_HOME` to a writable directory:
-> `export MEM8_HOME=/path/to/mem8-data`.
+> **Data location:** everything lives in `~/.m8m/` by default. If `~` is
+> read-only (e.g. some sandboxes), set `M8M_HOME` to a writable directory:
+> `export M8M_HOME=/path/to/m8m-data`.
 
 ## Quick start
 
 ```bash
-mem8 init
-mem8 import ./MEMORY.md --platform local_file
-mem8 status
-mem8 list --flagged
-mem8 audit
+m8m init
+m8m import ./MEMORY.md --platform local_file
+m8m status
+m8m list --flagged
+m8m audit
 ```
 
 ## CLI
 
 | Command | Description |
 | --- | --- |
-| `mem8 init` | Initialize config + database |
-| `mem8 status` | Overview: totals, flagged, security events |
-| `mem8 list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]` | List memories with filters |
-| `mem8 show <id>` | Full detail + changelog history |
-| `mem8 search <query> [--limit <n>]` | Keyword search |
-| `mem8 flag <id> --reason <reason>` | Manually flag a memory |
-| `mem8 unflag <id>` | Remove flags |
-| `mem8 quarantine <id>` | Quarantine a suspicious memory |
-| `mem8 restore <id>` | Restore from quarantine |
-| `mem8 dismiss <id>` | Clear flags + dismiss |
-| `mem8 import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
-| `mem8 scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
-| `mem8 snapshot [--platform <p>]` | Manual snapshot for diffing |
-| `mem8 diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
-| `mem8 audit [--severity critical] [--resolved]` | List security events |
-| `mem8 watch` | Start the file watcher (foreground) |
-| `mem8 dashboard [--port <p>]` | Start the web dashboard (default 8808) |
-| `mem8 mcp` | Start the MCP server (stdio) |
-| `mem8 config` | Show config |
-| `mem8 config set <key> <value>` | Update a config value |
-| `mem8 config add-watch <path>` | Add a watch path |
+| `m8m init` | Initialize config + database |
+| `m8m status` | Overview: totals, flagged, security events |
+| `m8m list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]` | List memories with filters |
+| `m8m show <id>` | Full detail + changelog history |
+| `m8m search <query> [--limit <n>]` | Keyword search |
+| `m8m flag <id> --reason <reason>` | Manually flag a memory |
+| `m8m unflag <id>` | Remove flags |
+| `m8m quarantine <id>` | Quarantine a suspicious memory |
+| `m8m restore <id>` | Restore from quarantine |
+| `m8m dismiss <id>` | Clear flags + dismiss |
+| `m8m import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
+| `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
+| `m8m snapshot [--platform <p>]` | Manual snapshot for diffing |
+| `m8m diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
+| `m8m audit [--severity critical] [--resolved]` | List security events |
+| `m8m watch` | Start the file watcher (foreground) |
+| `m8m dashboard [--port <p>]` | Start the web dashboard (default 8808) |
+| `m8m mcp` | Start the MCP server (stdio) |
+| `m8m config` | Show config |
+| `m8m config set <key> <value>` | Update a config value |
+| `m8m config add-watch <path>` | Add a watch path |
 
 ### Example
 
 ```bash
-$ mem8 status
+$ m8m status
 
-  Mem8 — Memory Observatory
+  M8m — Memory Observatory
   ─────────────────────────
   Total memories:     142
   Active:             138
@@ -123,13 +123,13 @@ $ mem8 status
 
 ## MCP server
 
-Mem8 exposes `mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`, and
-`mem8_flag` over stdio.
+M8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`, and
+`m8m_flag` over stdio.
 
 ### Easiest: auto-configure
 
 ```bash
-mem8 mcp add codex
+m8m mcp add codex
 ```
 
 Replace `codex` with `claude`, `cursor`, or `dsh`.
@@ -137,13 +137,13 @@ Replace `codex` with `claude`, `cursor`, or `dsh`.
 This writes the right config entry into the client's config file for you
 (Codex `~/.codex/config.toml`, Claude `~/.claude.json`, Cursor
 `~/.cursor/mcp.json`, DSH `$DSH_HOME/cordis.patch.yml`). Add
-`--data-dir /path` to bake in a `MEM8_HOME` override.
+`--data-dir /path` to bake in a `M8M_HOME` override.
 
 Or use your client's native command:
 
 ```bash
-codex mcp add mem8 -- npx -y @th0t3p/mem8 mcp
-claude mcp add mem8 -- npx -y @th0t3p/mem8 mcp
+codex mcp add m8m -- npx -y @th0t3p/m8m mcp
+claude mcp add m8m -- npx -y @th0t3p/m8m mcp
 ```
 
 ### Manual (equivalent config)
@@ -154,32 +154,32 @@ needed.
 **OpenAI Codex** — `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.mem8]
+[mcp_servers.m8m]
 command = "npx"
-args = ["-y", "@th0t3p/mem8", "mcp"]
+args = ["-y", "@th0t3p/m8m", "mcp"]
 startup_timeout_sec = 30
 ```
 
-Tools appear as `mem8_store`, etc.
+Tools appear as `m8m_store`, etc.
 
 **Claude Code** — project scope `.mcp.json`, or user scope `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
-    "mem8": { "command": "npx", "args": ["-y", "@th0t3p/mem8", "mcp"] }
+    "m8m": { "command": "npx", "args": ["-y", "@th0t3p/m8m", "mcp"] }
   }
 }
 ```
 
-Tools appear as `mem8_store`, etc.
+Tools appear as `m8m_store`, etc.
 
 **Cursor** — `~/.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "mem8": { "command": "npx", "args": ["-y", "@th0t3p/mem8", "mcp"] }
+    "m8m": { "command": "npx", "args": ["-y", "@th0t3p/m8m", "mcp"] }
   }
 }
 ```
@@ -188,22 +188,22 @@ Tools appear as `mem8_store`, etc.
 
 ```yaml
 - insert:
-    - id: mcp-mem8
+    - id: mcp-m8m
       name: '@deepseek-ai/dsh-mcp-client'
       config:
-        serverName: mem8
+        serverName: m8m
         transport: stdio
         command: npx
-        args: ['-y', '@th0t3p/mem8', 'mcp']
+        args: ['-y', '@th0t3p/m8m', 'mcp']
 ```
 
-Tools appear as `mcp__mem8__mem8_store`, etc.
+Tools appear as `mcp__m8m__m8m_store`, etc.
 
 
 ## Dashboard
 
 ```bash
-mem8 dashboard
+m8m dashboard
 ```
 
 Then open http://localhost:8808.
@@ -212,11 +212,11 @@ Four views: **Timeline**, **Memories**, **Security**, and **Diff**.
 
 ## Configuration
 
-Config lives at `~/.mem8/config.json` (override the directory with `$MEM8_HOME`):
+Config lives at `~/.m8m/config.json` (override the directory with `$M8M_HOME`):
 
 ```json
 {
-  "db_path": "~/.mem8/mem8.db",
+  "db_path": "~/.m8m/m8m.db",
   "watch_paths": ["~/.claude/memories", "./.claude/MEMORY.md", "./AGENTS.md", "./MEMORY.md"],
   "dashboard_port": 8808,
   "auto_snapshot_interval_minutes": 60,
@@ -249,7 +249,7 @@ CLI audit view and dashboard Security tab.
 
 ## What it catches
 
-Example findings from `mem8 audit`:
+Example findings from `m8m audit`:
 
 | Severity | Example | Risk |
 | --- | --- | --- |

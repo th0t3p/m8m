@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Mem8 CLI entry point.
+// M8m CLI entry point.
 
 import { Command } from 'commander';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
-import { initConfigDir, loadConfig, mem8HomeDir, saveConfig } from '../core/config.js';
+import { initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
   createSnapshot,
   flagMemory,
@@ -24,7 +24,7 @@ import { importBatch, importChatGPTExport, importClaudeExport, importLocalMemory
 import { formatDiscovery, isImportablePath, scanForMemoryFiles } from '../core/scanner.js';
 import { startDashboard } from '../dashboard/server.js';
 import { startMcpServer } from '../mcp/server.js';
-import { addMem8ToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
+import { addM8mToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
 import { startWatcher } from '../watcher/watcher.js';
 import {
   formatDiff,
@@ -39,7 +39,7 @@ import type { MemoryStatus } from '../core/types.js';
 const program = new Command();
 
 program
-  .name('mem8')
+  .name('m8m')
   .description('AI memory observability, provenance & security. Eight eyes. Nothing gets past.')
   .version('0.1.0');
 
@@ -105,12 +105,12 @@ function renderChangelogSince(cl: ReturnType<typeof getChangelog>): string {
 // --- Init ---------------------------------------------------------------
 program
   .command('init')
-  .description('Initialize the mem8 config directory and database')
+  .description('Initialize the m8m config directory and database')
   .action(() => {
     initConfigDir();
     const config = loadConfig();
     initDatabase(config.db_path);
-    console.log(`Mem8 initialized at ${mem8HomeDir()}`);
+    console.log(`M8m initialized at ${m8mHomeDir()}`);
   });
 
 // --- Status -------------------------------------------------------------
@@ -280,7 +280,7 @@ program
 
     console.log('');
     console.log(`  Done: ${imported} imported, ${updated} updated, ${flagged} flagged`);
-    if (flagged > 0) console.log('  Run `mem8 audit` to review flagged entries.');
+    if (flagged > 0) console.log('  Run `m8m audit` to review flagged entries.');
   });
 
 // --- Snapshot -----------------------------------------------------------
@@ -360,16 +360,16 @@ const mcpCmd = program
 
 mcpCmd
   .command('add <client>')
-  .description('Add mem8 to an MCP client config (codex | claude | cursor | dsh)')
-  .option('--data-dir <path>', 'Set MEM8_HOME in the generated config')
+  .description('Add m8m to an MCP client config (codex | claude | cursor | dsh)')
+  .option('--data-dir <path>', 'Set M8M_HOME in the generated config')
   .action((client: string, opts: { dataDir?: string }) => {
     if (!SUPPORTED_CLIENTS.includes(client as McpClient)) {
       console.error(`Unknown client "${client}". Supported: ${SUPPORTED_CLIENTS.join(', ')}`);
       process.exit(1);
     }
-    const result = addMem8ToClient(client as McpClient, opts.dataDir);
+    const result = addM8mToClient(client as McpClient, opts.dataDir);
     if (result.already) {
-      console.log(`mem8 is already configured for ${client} (${result.path}).`);
+      console.log(`m8m is already configured for ${client} (${result.path}).`);
       return;
     }
     if (result.manualSnippet) {
@@ -378,7 +378,7 @@ mcpCmd
       console.log(result.manualSnippet);
       return;
     }
-    console.log(`✓ Wrote mem8 MCP config to ${result.path}`);
+    console.log(`✓ Wrote m8m MCP config to ${result.path}`);
     console.log(`  Restart ${client} to pick it up.`);
   });
 

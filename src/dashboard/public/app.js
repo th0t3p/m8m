@@ -1,4 +1,4 @@
-// Mem8 dashboard frontend (vanilla JS, no framework).
+// M8m dashboard frontend (vanilla JS, no framework).
 
 const $app = document.getElementById('app');
 const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff };

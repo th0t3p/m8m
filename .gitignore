@@ -1,6 +1,6 @@
 node_modules/
 dist/
-.mem8-data/
+.m8m-data/
 .npm-cache/
 *.db
 *.db-journal

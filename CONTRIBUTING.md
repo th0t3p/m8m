@@ -1,6 +1,6 @@
-# Contributing to Mem8
+# Contributing to M8m
 
-Welcome! Mem8 is open source and we appreciate contributions.
+Welcome! M8m is open source and we appreciate contributions.
 
 ## Good first contributions
 
@@ -24,8 +24,8 @@ Please open an issue to discuss before submitting a PR for:
 ## Development setup
 
 ```bash
-git clone https://github.com/th0t3p/mem8.git
-cd mem8
+git clone https://github.com/th0t3p/m8m.git
+cd m8m
 npm install
 npm run build
 npm test

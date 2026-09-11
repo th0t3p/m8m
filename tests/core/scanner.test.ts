@@ -41,7 +41,7 @@ describe('groupByProvider', () => {
 describe('formatDiscovery', () => {
   it('renders a header and provider sections', () => {
     const out = formatDiscovery([file('/tmp/MEMORY.md', 'Generic')]);
-    expect(out).toContain('Mem8 — Memory Scanner');
+    expect(out).toContain('M8m — Memory Scanner');
     expect(out).toContain('Found 1 file(s) across 1 provider(s)');
     expect(out).toContain('Generic:');
     expect(out).toContain('/tmp/MEMORY.md');

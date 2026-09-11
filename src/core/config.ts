@@ -1,9 +1,9 @@
-// Configuration management. Reads/writes ~/.mem8/config.json (or $MEM8_HOME).
+// Configuration management. Reads/writes ~/.m8m/config.json (or $M8M_HOME).
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { Mem8Config, SourceType } from './types.js';
+import type { M8mConfig, SourceType } from './types.js';
 import { DEFAULT_TRUST_LEVELS } from './types.js';
 
 /** Expand a leading `~` to the user's home directory. */
@@ -13,20 +13,20 @@ export function expandHome(p: string): string {
   return p;
 }
 
-/** Directory holding mem8 config + database. Overridable via $MEM8_HOME. */
-export function mem8HomeDir(): string {
-  const override = process.env.MEM8_HOME;
+/** Directory holding m8m config + database. Overridable via $M8M_HOME. */
+export function m8mHomeDir(): string {
+  const override = process.env.M8M_HOME;
   if (override && override.trim().length > 0) return expandHome(override);
-  return join(homedir(), '.mem8');
+  return join(homedir(), '.m8m');
 }
 
 export function configPath(): string {
-  return join(mem8HomeDir(), 'config.json');
+  return join(m8mHomeDir(), 'config.json');
 }
 
-export function defaultConfig(): Mem8Config {
+export function defaultConfig(): M8mConfig {
   return {
-    db_path: join(mem8HomeDir(), 'mem8.db'),
+    db_path: join(m8mHomeDir(), 'm8m.db'),
     watch_paths: [
       '~/.claude/memories',
       './.claude/MEMORY.md',
@@ -44,8 +44,8 @@ function isSourceType(s: string): s is SourceType {
   return Object.prototype.hasOwnProperty.call(DEFAULT_TRUST_LEVELS, s);
 }
 
-/** Normalize a raw parsed object into a Mem8Config, merging with defaults. */
-function mergeWithDefaults(raw: unknown): Mem8Config {
+/** Normalize a raw parsed object into a M8mConfig, merging with defaults. */
+function mergeWithDefaults(raw: unknown): M8mConfig {
   const base = defaultConfig();
   if (typeof raw !== 'object' || raw === null) return base;
   const r = raw as Record<string, unknown>;
@@ -68,7 +68,7 @@ function mergeWithDefaults(raw: unknown): Mem8Config {
 }
 
 /** Read config from disk, creating it with defaults if absent. */
-export function loadConfig(): Mem8Config {
+export function loadConfig(): M8mConfig {
   initConfigDir();
   const path = configPath();
   let raw: unknown = {};
@@ -86,10 +86,10 @@ export function loadConfig(): Mem8Config {
 }
 
 /** Merge partial config into the stored config and persist it. */
-export function saveConfig(config: Partial<Mem8Config>): void {
+export function saveConfig(config: Partial<M8mConfig>): void {
   initConfigDir();
   const current = loadConfig();
-  const next: Mem8Config = {
+  const next: M8mConfig = {
     ...current,
     ...config,
     trust_levels: { ...current.trust_levels, ...(config.trust_levels ?? {}) },
@@ -97,9 +97,9 @@ export function saveConfig(config: Partial<Mem8Config>): void {
   writeFileSync(configPath(), JSON.stringify(next, null, 2) + '\n', 'utf8');
 }
 
-/** Create the mem8 home directory and a default config file if missing. */
+/** Create the m8m home directory and a default config file if missing. */
 export function initConfigDir(): void {
-  const dir = mem8HomeDir();
+  const dir = m8mHomeDir();
   mkdirSync(dir, { recursive: true });
   const path = configPath();
   if (!existsSync(path)) {
