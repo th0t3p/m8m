@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.mem8-data/
+.npm-cache/
 *.db
 *.db-journal
 *.db-wal

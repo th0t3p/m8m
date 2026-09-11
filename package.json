@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",
+    "prepare": "npm run build",
     "dev": "tsx watch src/cli/index.ts",
     "mcp": "tsx src/mcp/server.ts",
     "dashboard": "tsx src/dashboard/server.ts",

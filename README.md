@@ -3,10 +3,10 @@
 AI memory observability, provenance & security. Eight eyes. Nothing gets past.
 
 Mem8 monitors what your AI agents remember about you — where each memory came
-from, what changed, and whether anything looks suspicious. It ships as four
-cooperating pieces that share one local SQLite database:
+from, what changed, and whether anything looks suspicious. Four cooperating
+pieces share one local SQLite database:
 
-- **MCP server** — live memory operations observed as your agent works
+- **MCP server** — live memory operations as your agent works
 - **File watcher** — tracks local memory files (`MEMORY.md`, `CLAUDE.md`, …)
 - **CLI** — query and audit memory state from the terminal
 - **Local dashboard** — a dark, browser-based visualization
@@ -14,49 +14,70 @@ cooperating pieces that share one local SQLite database:
 Phase 1 is entirely local: SQLite storage, pattern-based analysis, and **zero**
 LLM or network calls in the analyzer itself.
 
-## Installation
+## Install
+
+### From npm (published) — one command
 
 ```bash
-npm install
-npm run build
+npm install -g mem8
 ```
 
-Run with `npx tsx` during development, or the compiled CLI at
-`node dist/cli/index.js`.
+### From source (this repo) — one command
 
 ```bash
-# initialize ~/.mem8/ (config + database)
-npm run dev -- init
+./scripts/install.sh
+```
 
-# or, after building:
-node dist/cli/index.js init
+That installs dependencies, builds, and runs `npm link` so `mem8` is on your
+`PATH`. (Equivalent manual steps: `npm install` then `npm install -g .`.)
+
+### Run without installing
+
+```bash
+node dist/cli/index.js --help        # after `npm run build`
+npx tsx src/cli/index.ts --help      # directly from TypeScript, no build
+```
+
+> **Data location:** everything lives in `~/.mem8/` by default. If `~` is
+> read-only (e.g. some sandboxes), set `MEM8_HOME` to a writable directory:
+> `export MEM8_HOME=/path/to/mem8-data`.
+
+## Quick start
+
+```bash
+mem8 init                                   # create config + database
+mem8 import ./MEMORY.md --platform local_file
+mem8 status                                 # totals, flags, security events
+mem8 list --flagged
+mem8 audit
 ```
 
 ## CLI
 
 ```
-mem8 status                          # Overview: totals, flagged, security events
+mem8 init                             # Initialize config + database
+mem8 status                           # Overview: totals, flagged, security events
 mem8 list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]
-mem8 show <id>                       # Full detail + changelog history
-mem8 search <query> [--limit <n>]    # Keyword search
-mem8 flag <id> --reason <reason>     # Manually flag a memory
-mem8 unflag <id>                     # Remove flags
-mem8 quarantine <id>                 # Quarantine a suspicious memory
-mem8 restore <id>                    # Restore from quarantine
-mem8 dismiss <id>                    # Clear flags + dismiss
+mem8 show <id>                        # Full detail + changelog history
+mem8 search <query> [--limit <n>]     # Keyword search
+mem8 flag <id> --reason <reason>      # Manually flag a memory
+mem8 unflag <id>                      # Remove flags
+mem8 quarantine <id>                  # Quarantine a suspicious memory
+mem8 restore <id>                     # Restore from quarantine
+mem8 dismiss <id>                     # Clear flags + dismiss
 mem8 import <file> [--source claude|chatgpt|local] [--platform <p>]
-mem8 snapshot [--platform <p>]       # Manual snapshot for diffing
+mem8 snapshot [--platform <p>]        # Manual snapshot for diffing
 mem8 diff [--since "2 hours ago"] [--snapshot <id1> <id2>]
 mem8 audit [--severity critical] [--resolved]
-mem8 watch                           # Start the file watcher
-mem8 dashboard [--port <p>]          # Start the web dashboard (default 8808)
-mem8 mcp                             # Start the MCP server (stdio)
-mem8 config                          # Show config
-mem8 config set <key> <value>        # Update a config value
-mem8 config add-watch <path>         # Add a watch path
+mem8 watch                            # Start the file watcher (foreground)
+mem8 dashboard [--port <p>]           # Start the web dashboard (default 8808)
+mem8 mcp                              # Start the MCP server (stdio)
+mem8 config                           # Show config
+mem8 config set <key> <value>         # Update a config value
+mem8 config add-watch <path>          # Add a watch path
 ```
 
-### Examples
+### Example
 
 ```bash
 $ mem8 status
@@ -78,21 +99,45 @@ $ mem8 status
 
 ## MCP server
 
-Add Mem8 to your MCP client so agents can store and query memories:
+Point your agent client at the stdio server (`dist/mcp/server.js`) to expose
+`mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`, and `mem8_flag`.
 
-```json
-{
-  "mcpServers": {
-    "mem8": {
-      "command": "node",
-      "args": ["dist/mcp/server.js"]
-    }
-  }
-}
+### DeepSeek Harness (DSH)
+
+Add a `dsh-mcp-client` instance to your profile's `cordis.patch.yml`
+(e.g. `~/.dsh/profiles/<name>/cordis.patch.yml`):
+
+```yaml
+- insert:
+    - id: mcp-mem8
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: mem8
+        transport: stdio
+        command: node
+        args:
+          - /absolute/path/to/mem8/dist/mcp/server.js
+        env:
+          MEM8_HOME: /absolute/path/to/mem8-data   # optional
 ```
 
-Available tools: `mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`,
-`mem8_flag`.
+Tools appear as `mcp__mem8__mem8_store`, etc.
+
+### OpenAI Codex
+
+Append to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.mem8]
+command = "node"
+args = ["/absolute/path/to/mem8/dist/mcp/server.js"]
+startup_timeout_sec = 30
+
+[mcp_servers.mem8.env]
+MEM8_HOME = "/absolute/path/to/mem8-data"   # optional
+```
+
+Tools appear as `mem8_store`, etc.
 
 ## Dashboard
 
@@ -145,7 +190,7 @@ CLI audit view and dashboard Security tab.
 ```bash
 npm run build      # compile TypeScript + copy dashboard assets
 npm test           # run the vitest suite
-npm run dev        # tsx watch on the CLI
+npm run dev        # tsx watch on the CLI (see scripts/dev.sh)
 ```
 
 ## License
