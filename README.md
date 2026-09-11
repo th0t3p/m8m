@@ -54,9 +54,12 @@ That installs dependencies, builds, and runs `npm link` so `mem8` is on your
 ### Run without installing
 
 ```bash
-node dist/cli/index.js --help        # after `npm run build`
-npx tsx src/cli/index.ts --help      # directly from TypeScript, no build
+node dist/cli/index.js --help
+npx tsx src/cli/index.ts --help
 ```
+
+The first command requires `npm run build` first; the second runs TypeScript
+directly with no build.
 
 > **Data location:** everything lives in `~/.mem8/` by default. If `~` is
 > read-only (e.g. some sandboxes), set `MEM8_HOME` to a writable directory:
@@ -65,37 +68,37 @@ npx tsx src/cli/index.ts --help      # directly from TypeScript, no build
 ## Quick start
 
 ```bash
-mem8 init                                   # create config + database
+mem8 init
 mem8 import ./MEMORY.md --platform local_file
-mem8 status                                 # totals, flags, security events
+mem8 status
 mem8 list --flagged
 mem8 audit
 ```
 
 ## CLI
 
-```
-mem8 init                             # Initialize config + database
-mem8 status                           # Overview: totals, flagged, security events
-mem8 list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]
-mem8 show <id>                        # Full detail + changelog history
-mem8 search <query> [--limit <n>]     # Keyword search
-mem8 flag <id> --reason <reason>      # Manually flag a memory
-mem8 unflag <id>                      # Remove flags
-mem8 quarantine <id>                  # Quarantine a suspicious memory
-mem8 restore <id>                     # Restore from quarantine
-mem8 dismiss <id>                     # Clear flags + dismiss
-mem8 import <file> [--source claude|chatgpt|local] [--platform <p>]
-mem8 snapshot [--platform <p>]        # Manual snapshot for diffing
-mem8 diff [--since "2 hours ago"] [--snapshot <id1> <id2>]
-mem8 audit [--severity critical] [--resolved]
-mem8 watch                            # Start the file watcher (foreground)
-mem8 dashboard [--port <p>]           # Start the web dashboard (default 8808)
-mem8 mcp                              # Start the MCP server (stdio)
-mem8 config                           # Show config
-mem8 config set <key> <value>         # Update a config value
-mem8 config add-watch <path>          # Add a watch path
-```
+| Command | Description |
+| --- | --- |
+| `mem8 init` | Initialize config + database |
+| `mem8 status` | Overview: totals, flagged, security events |
+| `mem8 list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]` | List memories with filters |
+| `mem8 show <id>` | Full detail + changelog history |
+| `mem8 search <query> [--limit <n>]` | Keyword search |
+| `mem8 flag <id> --reason <reason>` | Manually flag a memory |
+| `mem8 unflag <id>` | Remove flags |
+| `mem8 quarantine <id>` | Quarantine a suspicious memory |
+| `mem8 restore <id>` | Restore from quarantine |
+| `mem8 dismiss <id>` | Clear flags + dismiss |
+| `mem8 import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
+| `mem8 snapshot [--platform <p>]` | Manual snapshot for diffing |
+| `mem8 diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
+| `mem8 audit [--severity critical] [--resolved]` | List security events |
+| `mem8 watch` | Start the file watcher (foreground) |
+| `mem8 dashboard [--port <p>]` | Start the web dashboard (default 8808) |
+| `mem8 mcp` | Start the MCP server (stdio) |
+| `mem8 config` | Show config |
+| `mem8 config set <key> <value>` | Update a config value |
+| `mem8 config add-watch <path>` | Add a watch path |
 
 ### Example
 
@@ -125,8 +128,10 @@ Mem8 exposes `mem8_store`, `mem8_search`, `mem8_recent`, `mem8_status`, and
 ### Easiest: auto-configure
 
 ```bash
-mem8 mcp add codex      # or: claude, cursor, dsh
+mem8 mcp add codex
 ```
+
+Replace `codex` with `claude`, `cursor`, or `dsh`.
 
 This writes the right config entry into the client's config file for you
 (Codex `~/.codex/config.toml`, Claude `~/.claude.json`, Cursor
@@ -198,8 +203,9 @@ Tools appear as `mcp__mem8__mem8_store`, etc.
 
 ```bash
 mem8 dashboard
-# open http://localhost:8808
 ```
+
+Then open http://localhost:8808.
 
 Four views: **Timeline**, **Memories**, **Security**, and **Diff**.
 
@@ -262,11 +268,9 @@ CLI audit view and dashboard Security tab.
 
 ## Development
 
-```bash
-npm run build      # compile TypeScript + copy dashboard assets
-npm test           # run the vitest suite
-npm run dev        # tsx watch on the CLI (see scripts/dev.sh)
-```
+- `npm run build` — compile TypeScript + copy dashboard assets
+- `npm test` — run the vitest suite
+- `npm run dev` — tsx watch on the CLI (see `scripts/dev.sh`)
 
 ## License
 
