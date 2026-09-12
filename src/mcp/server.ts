@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig } from '../core/config.js';
 import { initDatabase } from '../core/db.js';
+import { VERSION } from '../version.js';
 import { TOOLS } from './tools.js';
 
 function wrapResult(result: unknown): { content: { type: 'text'; text: string }[] } {
@@ -15,7 +16,7 @@ export async function startMcpServer(): Promise<void> {
   const config = loadConfig();
   initDatabase(config.db_path);
 
-  const server = new McpServer({ name: 'm8m', version: '0.1.0' });
+  const server = new McpServer({ name: 'm8m', version: VERSION });
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,

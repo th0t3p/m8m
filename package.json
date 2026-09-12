@@ -1,6 +1,6 @@
 {
   "name": "@th0t3p/m8m",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI memory observability, provenance & security. Eight eyes. Nothing gets past.",
   "license": "MIT",
   "author": "th0t3p <th0t3p@gmail.com>",
@@ -35,7 +35,7 @@
     "m8m": "./dist/cli/index.js"
   },
   "scripts": {
-    "build": "tsc && node scripts/copy-assets.mjs",
+    "build": "node scripts/clean.mjs && tsc && node scripts/copy-assets.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm test",
     "dev": "tsx watch src/cli/index.ts",

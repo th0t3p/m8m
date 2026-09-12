@@ -45,13 +45,14 @@ import {
   truncate,
 } from './formatters.js';
 import type { MemoryNode, MemoryStatus, ProviderConfig, SourcePlatform } from '../core/types.js';
+import { VERSION } from '../version.js';
 
 const program = new Command();
 
 program
   .name('m8m')
   .description('AI memory observability, provenance & security. Eight eyes. Nothing gets past.')
-  .version('0.1.0');
+  .version(VERSION);
 
 function ensureDb() {
   const config = loadConfig();
