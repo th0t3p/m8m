@@ -3,7 +3,8 @@
 import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, extname, join, resolve } from 'node:path';
-import type { SourcePlatform } from './types.js';
+import type { ProviderConfig, SourcePlatform } from './types.js';
+import { DEFAULT_PROVIDERS } from './providers.js';
 
 export interface DiscoveredMemoryFile {
   path: string;
@@ -13,60 +14,12 @@ export interface DiscoveredMemoryFile {
   size: number;
 }
 
-interface MemoryFileTarget {
-  path: string;
-  platform: SourcePlatform;
-  provider: string;
-  description: string;
-  isDir?: boolean;
-  extensions?: string[];
-}
-
-const TARGETS: MemoryFileTarget[] = [
-  // Claude Code
-  { path: '~/.claude/CLAUDE.md', platform: 'claude_code', provider: 'Claude Code', description: 'User-level instructions' },
-  { path: '~/.claude/memories', platform: 'claude_code', provider: 'Claude Code', description: 'User memories directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
-  { path: './CLAUDE.md', platform: 'claude_code', provider: 'Claude Code', description: 'Project-level instructions' },
-  { path: './.claude/MEMORY.md', platform: 'claude_code', provider: 'Claude Code', description: 'Project-level memory' },
-  { path: './.claude/settings.json', platform: 'claude_code', provider: 'Claude Code', description: 'Project settings' },
-  // Claude Desktop
-  { path: '~/.config/Claude/claude_desktop_config.json', platform: 'claude_desktop', provider: 'Claude Desktop', description: 'Desktop config' },
-  { path: '~/Library/Application Support/Claude/claude_desktop_config.json', platform: 'claude_desktop', provider: 'Claude Desktop', description: 'Desktop config' },
-  // Cursor
-  { path: './.cursor/rules', platform: 'cursor', provider: 'Cursor', description: 'Project rules directory', isDir: true, extensions: ['.md', '.txt', '.mdc'] },
-  { path: './.cursorrules', platform: 'cursor', provider: 'Cursor', description: 'Project rules' },
-  { path: '~/.cursor/rules', platform: 'cursor', provider: 'Cursor', description: 'User rules directory', isDir: true, extensions: ['.md', '.txt', '.mdc'] },
-  // Windsurf
-  { path: './.windsurfrules', platform: 'local_file', provider: 'Windsurf', description: 'Project rules' },
-  { path: '~/.codeium/windsurf/memories', platform: 'local_file', provider: 'Windsurf', description: 'Memories directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
-  // Cline
-  { path: './.clinerules', platform: 'local_file', provider: 'Cline', description: 'Project rules' },
-  { path: '~/.cline/memory', platform: 'local_file', provider: 'Cline', description: 'Memory directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
-  // Codex
-  { path: '~/.codex/config.toml', platform: 'local_file', provider: 'Codex', description: 'Config' },
-  { path: '~/.codex/instructions.md', platform: 'local_file', provider: 'Codex', description: 'Global instructions' },
-  { path: '~/.codex/AGENTS.md', platform: 'local_file', provider: 'Codex', description: 'Global agent rules' },
-  { path: './codex.md', platform: 'local_file', provider: 'Codex', description: 'Project instructions' },
-  // Aider
-  { path: './.aider.conf.yml', platform: 'local_file', provider: 'Aider', description: 'Project config' },
-  { path: '~/.aider.conf.yml', platform: 'local_file', provider: 'Aider', description: 'User config' },
-  // GitHub Copilot
-  { path: './.github/copilot-instructions.md', platform: 'local_file', provider: 'GitHub Copilot', description: 'Project instructions' },
-  // Continue.dev
-  { path: './.continue/config.json', platform: 'local_file', provider: 'Continue.dev', description: 'Project config' },
-  { path: '~/.continue/config.json', platform: 'local_file', provider: 'Continue.dev', description: 'User config' },
-  // Generic agents
-  { path: './MEMORY.md', platform: 'local_file', provider: 'Generic', description: 'Project memory' },
-  { path: './AGENTS.md', platform: 'local_file', provider: 'Generic', description: 'Project instructions' },
-  { path: './.agent/memory.json', platform: 'local_file', provider: 'Generic', description: 'Agent memory' },
-];
-
 function resolvePath(p: string): string {
   const expanded = p === '~' ? homedir() : p.startsWith('~/') ? join(homedir(), p.slice(2)) : p;
   return resolve(expanded);
 }
 
-export function scanForMemoryFiles(): DiscoveredMemoryFile[] {
+export function scanForMemoryFiles(providers: ProviderConfig[] = DEFAULT_PROVIDERS): DiscoveredMemoryFile[] {
   const seen = new Set<string>();
   const results: DiscoveredMemoryFile[] = [];
   const push = (file: DiscoveredMemoryFile) => {
@@ -75,15 +28,15 @@ export function scanForMemoryFiles(): DiscoveredMemoryFile[] {
     results.push(file);
   };
 
-  for (const target of TARGETS) {
+  const scanTarget = (providerName: string, platform: SourcePlatform, target: ProviderConfig['targets'][number]): void => {
     const resolved = resolvePath(target.path);
     if (target.isDir) {
       let entries: string[] = [];
       try {
-        if (!statSync(resolved).isDirectory()) continue;
+        if (!statSync(resolved).isDirectory()) return;
         entries = readdirSync(resolved).map((f) => join(resolved, f));
       } catch {
-        continue;
+        return;
       }
       for (const entry of entries) {
         const ext = extname(entry).toLowerCase();
@@ -98,8 +51,8 @@ export function scanForMemoryFiles(): DiscoveredMemoryFile[] {
         }
         push({
           path: entry,
-          platform: target.platform,
-          provider: target.provider,
+          platform,
+          provider: providerName,
           description: `${target.description} — ${basename(entry)}`,
           size,
         });
@@ -108,18 +61,24 @@ export function scanForMemoryFiles(): DiscoveredMemoryFile[] {
       let size = 0;
       try {
         const st = statSync(resolved);
-        if (!st.isFile()) continue;
+        if (!st.isFile()) return;
         size = st.size;
       } catch {
-        continue;
+        return;
       }
       push({
         path: resolved,
-        platform: target.platform,
-        provider: target.provider,
+        platform,
+        provider: providerName,
         description: target.description,
         size,
       });
+    }
+  };
+
+  for (const provider of providers) {
+    for (const target of provider.targets) {
+      scanTarget(provider.name, provider.platform, target);
     }
   }
 

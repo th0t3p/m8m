@@ -103,6 +103,7 @@ export const SCHEMA_STATEMENTS: string[] = [
     file_format TEXT NOT NULL,
     title TEXT,
     raw_content TEXT NOT NULL,
+    provider TEXT,
     source_platform TEXT NOT NULL DEFAULT 'unknown',
     trust_level REAL NOT NULL DEFAULT 0.5,
     anomaly_score REAL NOT NULL DEFAULT 0.0,

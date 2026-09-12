@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
-import { initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
+import { configPath, initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
   clearAllMemories,
   createSnapshot,
@@ -45,7 +45,7 @@ import {
   formatStatBlock,
   truncate,
 } from './formatters.js';
-import type { MemoryNode, MemoryStatus, SourcePlatform } from '../core/types.js';
+import type { MemoryNode, MemoryStatus, ProviderConfig, SourcePlatform } from '../core/types.js';
 
 const program = new Command();
 
@@ -275,7 +275,7 @@ program
       return;
     }
     // Local file → structured document import.
-    const result = importFileAsDocument(file, (opts.platform ?? 'local_file') as SourcePlatform, 'manual_import');
+    const result = importFileAsDocument(file, null, (opts.platform ?? 'local_file') as SourcePlatform, 'manual_import');
     const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
     console.log(`✓ ${basename(file)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
   });
@@ -287,8 +287,8 @@ program
   .option('--dry-run', 'Only show discovered files, do not import')
   .option('--yes', 'Import without prompting for confirmation')
   .action(async (opts: { dryRun?: boolean; yes?: boolean }) => {
-    ensureDb();
-    const files = scanForMemoryFiles();
+    const config = ensureDb();
+    const files = scanForMemoryFiles(config.providers);
     console.log(formatDiscovery(files));
 
     if (opts.dryRun) return;
@@ -311,7 +311,7 @@ program
     let nodes = 0;
     let flagged = 0;
     for (const f of importable) {
-      const result = importFileAsDocument(f.path, f.platform, 'manual_import');
+      const result = importFileAsDocument(f.path, f.provider, f.platform, 'manual_import');
       const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
       console.log(`  ✓ ${f.provider}: ${basename(f.path)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
       docs++;
@@ -398,10 +398,11 @@ const docsCmd = program
       console.log('  (no documents imported yet — run `m8m import <file>` or `m8m scan`)');
       return;
     }
-    console.log(`  ${'ID'.padEnd(10)} ${'Platform'.padEnd(13)} ${'Path'.padEnd(30)} ${'Nodes'.padEnd(6)} ${'Flags'.padEnd(6)} v${'Last modified'}`);
+    console.log(`  ${'ID'.padEnd(10)} ${'Provider'.padEnd(15)} ${'Path'.padEnd(34)} ${'Nodes'.padEnd(6)} ${'Flags'.padEnd(6)} v${'Last modified'}`);
     for (const d of docs) {
-      const nodes = d.nodes ?? [];
-      console.log(`  ${d.id.slice(0, 8).padEnd(10)} ${d.source_platform.padEnd(13)} ${truncate(d.file_path, 28).padEnd(30)} ${String(nodes.length).padEnd(6)} ${String(d.flags_summary.length).padEnd(6)} v${d.version}`);
+      const nodes = d.node_count ?? d.nodes?.length ?? 0;
+      const provider = d.provider ?? d.source_platform;
+      console.log(`  ${d.id.slice(0, 8).padEnd(10)} ${truncate(provider, 13).padEnd(15)} ${truncate(d.file_path, 32).padEnd(34)} ${String(nodes).padEnd(6)} ${String(d.flags_summary.length).padEnd(6)} v${d.version}`);
     }
   });
 
@@ -413,7 +414,8 @@ docsCmd.command('show <id>').description('Show document tree with flags').action
     process.exit(1);
   }
   console.log('');
-  console.log(`  ${doc.file_path} (${doc.source_platform}, v${doc.version}, trust: ${doc.trust_level})`);
+  const provider = doc.provider ? `, provider: ${doc.provider}` : '';
+  console.log(`  ${doc.file_path} (${doc.source_platform}${provider}, v${doc.version}, trust: ${doc.trust_level})`);
   console.log('  ────────────────────────────────────────────────');
   for (const line of renderDocTree(doc.nodes ?? [])) console.log(`  ${line}`);
   if (doc.flags_summary.length) console.log(`\n  ${doc.flags_summary.length} node(s) flagged — run \`m8m audit\` for details.`);
@@ -547,6 +549,68 @@ configCmd
     const config = loadConfig();
     saveConfig({ watch_paths: [...config.watch_paths, path] });
     console.log(`Added watch path: ${path}`);
+  });
+
+// --- Providers -----------------------------------------------------------
+const providersCmd = program
+  .command('providers')
+  .description('List scan providers (agent-harness files/directories)')
+  .action(() => {
+    const config = loadConfig();
+    if (config.providers.length === 0) {
+      console.log('No providers configured.');
+    } else {
+      for (const p of config.providers) {
+        console.log(`${p.name}  (platform: ${p.platform})`);
+        for (const t of p.targets) {
+          const kind = t.isDir ? 'dir ' : 'file';
+          const exts = t.extensions?.length ? ` [${t.extensions.join(', ')}]` : '';
+          const desc = t.description ? `  — ${t.description}` : '';
+          console.log(`    ${kind.padEnd(5)} ${t.path}${exts}${desc}`);
+        }
+      }
+    }
+    console.log(`\n  Edit ${configPath()} → "providers" to customize, or use \`m8m providers add|rm\`.`);
+  });
+
+providersCmd
+  .command('add <name> <path>')
+  .description('Add a scan target (creates the provider if new)')
+  .option('--platform <p>', 'Platform label', 'local_file')
+  .option('--dir', 'Treat the path as a directory')
+  .option('--desc <d>', 'Description of the target')
+  .option('--ext <exts>', 'Comma-separated extensions for a directory target (e.g. .md,.json)')
+  .action((name: string, path: string, opts: { platform?: string; dir?: boolean; desc?: string; ext?: string }) => {
+    const config = loadConfig();
+    const provider = config.providers.find((p) => p.name === name);
+    const target: ProviderConfig['targets'][number] = {
+      path,
+      isDir: Boolean(opts.dir),
+      description: opts.desc ?? '',
+      extensions: opts.ext ? String(opts.ext).split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+    };
+    if (provider) {
+      provider.targets.push(target);
+    } else {
+      config.providers.push({ name, platform: (opts.platform ?? 'local_file') as SourcePlatform, targets: [target] });
+    }
+    saveConfig({ providers: config.providers });
+    console.log(`✓ Added ${target.isDir ? 'directory' : 'file'} target ${path} under provider "${name}".`);
+  });
+
+providersCmd
+  .command('rm <name>')
+  .description('Remove a provider (and all its targets) from the scan config')
+  .action((name: string) => {
+    const config = loadConfig();
+    const before = config.providers.length;
+    config.providers = config.providers.filter((p) => p.name !== name);
+    if (config.providers.length === before) {
+      console.log(`No provider named "${name}" found.`);
+      return;
+    }
+    saveConfig({ providers: config.providers });
+    console.log(`✓ Removed provider "${name}".`);
   });
 
 program.parseAsync(process.argv);

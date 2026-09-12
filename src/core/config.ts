@@ -3,8 +3,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
-import type { M8mConfig, SourceType } from './types.js';
+import type { M8mConfig, ProviderConfig, SourceType } from './types.js';
 import { DEFAULT_TRUST_LEVELS } from './types.js';
+import { DEFAULT_PROVIDERS } from './providers.js';
 
 /** Expand a leading `~` to the user's home directory. */
 export function expandHome(p: string): string {
@@ -34,6 +35,7 @@ export function defaultConfig(): M8mConfig {
       './AGENTS.md',
       './MEMORY.md',
     ],
+    providers: DEFAULT_PROVIDERS.map((p) => ({ ...p, targets: p.targets.map((t) => ({ ...t })) })),
     dashboard_port: 8808,
     auto_snapshot_interval_minutes: 60,
     trust_levels: { ...DEFAULT_TRUST_LEVELS },
@@ -57,6 +59,13 @@ function mergeWithDefaults(raw: unknown): M8mConfig {
   if (typeof r.dashboard_port === 'number') base.dashboard_port = r.dashboard_port;
   if (typeof r.auto_snapshot_interval_minutes === 'number') {
     base.auto_snapshot_interval_minutes = r.auto_snapshot_interval_minutes;
+  }
+  if (Array.isArray(r.providers)) {
+    base.providers = (r.providers as unknown[]).filter((p): p is ProviderConfig => {
+      if (typeof p !== 'object' || p === null) return false;
+      const c = p as Record<string, unknown>;
+      return typeof c.name === 'string' && typeof c.platform === 'string' && Array.isArray(c.targets);
+    });
   }
   if (typeof r.trust_levels === 'object' && r.trust_levels !== null) {
     const tl = r.trust_levels as Record<string, unknown>;

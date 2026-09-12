@@ -160,8 +160,20 @@ export function initDatabase(dbPath: string): Database.Database {
   const instance = new Database(dbPath);
   instance.pragma('journal_mode = WAL');
   instance.exec(SCHEMA_STATEMENTS.join(';\n'));
+  migrateSchema(instance);
   db = instance;
   return instance;
+}
+
+/** Idempotent column-level migrations for databases created before a column was added. */
+function migrateSchema(instance: Database.Database): void {
+  const ensureColumn = (table: string, column: string, ddl: string): void => {
+    const cols = instance.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (cols.length > 0 && !cols.some((c) => c.name === column)) {
+      instance.exec(ddl);
+    }
+  };
+  ensureColumn('memory_documents', 'provider', `ALTER TABLE memory_documents ADD COLUMN provider TEXT`);
 }
 
 export function getDb(): Database.Database {
@@ -674,6 +686,7 @@ function rowToDocument(r: any): MemoryDocument {
     file_format: r.file_format,
     title: r.title ?? null,
     raw_content: r.raw_content,
+    provider: r.provider ?? null,
     source_platform: r.source_platform as SourcePlatform,
     trust_level: r.trust_level,
     anomaly_score: r.anomaly_score,
@@ -683,6 +696,7 @@ function rowToDocument(r: any): MemoryDocument {
     last_seen: r.last_seen,
     last_modified: r.last_modified ?? undefined,
     version: r.version,
+    node_count: r.node_count !== undefined ? Number(r.node_count) : undefined,
   };
 }
 
@@ -811,6 +825,7 @@ export function upsertDocument(
   rawContent: string,
   parsedDoc: ParsedDocument,
   platform: SourcePlatform,
+  provider: string | null,
   trustLevel: number,
   detectedBy: DetectionSource,
 ): MemoryDocument {
@@ -831,8 +846,8 @@ export function upsertDocument(
     const oldHashes = new Set(oldNodes.map((n) => n.content_hash));
 
     d.prepare(
-      `UPDATE memory_documents SET raw_content = ?, file_hash = ?, title = ?, last_modified = ?, last_seen = ?, version = version + 1 WHERE id = ?`,
-    ).run(rawContent, fileHash, parsedDoc.title ?? null, ts, ts, existing.id);
+      `UPDATE memory_documents SET raw_content = ?, file_hash = ?, title = ?, provider = ?, last_modified = ?, last_seen = ?, version = version + 1 WHERE id = ?`,
+    ).run(rawContent, fileHash, parsedDoc.title ?? null, provider, ts, ts, existing.id);
     d.prepare(`DELETE FROM memory_nodes WHERE document_id = ?`).run(existing.id);
 
     const newHashes = new Set<string>();
@@ -858,9 +873,9 @@ export function upsertDocument(
   const fileName = basename(filePath);
   const fileFormat = detectFileFormat(filePath);
   d.prepare(
-    `INSERT INTO memory_documents (id, file_path, file_name, file_hash, file_format, title, raw_content, source_platform, trust_level, first_seen, last_seen)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(id, filePath, fileName, fileHash, fileFormat, parsedDoc.title ?? null, rawContent, platform, trustLevel, ts, ts);
+    `INSERT INTO memory_documents (id, file_path, file_name, file_hash, file_format, title, raw_content, provider, source_platform, trust_level, first_seen, last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, filePath, fileName, fileHash, fileFormat, parsedDoc.title ?? null, rawContent, provider, platform, trustLevel, ts, ts);
 
   const newHashes = new Set<string>();
   insertDocumentNodes(id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes);
@@ -891,7 +906,10 @@ export function getAllDocuments(filters?: { status?: MemoryStatus; source_platfo
   if (filters?.status) { clauses.push('status = ?'); params.push(filters.status); }
   if (filters?.source_platform) { clauses.push('source_platform = ?'); params.push(filters.source_platform); }
   const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
-  const rows = d.prepare(`SELECT * FROM memory_documents${where} ORDER BY last_modified DESC`).all(...params);
+  const rows = d.prepare(
+    `SELECT d.*, (SELECT COUNT(*) FROM memory_nodes n WHERE n.document_id = d.id) AS node_count
+     FROM memory_documents d${where} ORDER BY d.last_modified DESC`,
+  ).all(...params);
   return (rows as any[]).map(rowToDocument);
 }
 

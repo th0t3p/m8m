@@ -122,9 +122,10 @@ describe('db — documents', () => {
         { node_type: 'section', heading: 'Intro', content: '# Intro', children: [{ node_type: 'paragraph', content: 'Hello world', children: [] }] },
       ],
     };
-    const doc = upsertDocument('/tmp/test.md', '# Intro\n\nHello world', parsed, 'local_file', 0.5, 'cli');
+    const doc = upsertDocument('/tmp/test.md', '# Intro\n\nHello world', parsed, 'local_file', 'Claude Code', 0.5, 'cli');
     expect(doc.id).toBeTruthy();
     expect(doc.title).toBe('Test Doc');
+    expect(doc.provider).toBe('Claude Code');
     expect(doc.raw_content).toBe('# Intro\n\nHello world');
     expect(getNodesForDocument(doc.id)).toHaveLength(2);
     expect(getDocumentChangelog(doc.id)).toHaveLength(1);
@@ -132,8 +133,8 @@ describe('db — documents', () => {
 
   it('upsertDocument with same hash only updates last_seen', () => {
     const parsed = { title: 'T', nodes: [] };
-    const a = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', 0.5, 'cli');
-    const b = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', 0.5, 'cli');
+    const a = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', null, 0.5, 'cli');
+    const b = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', null, 0.5, 'cli');
     expect(b.id).toBe(a.id);
     expect(b.version).toBe(1);
     expect(getDocumentChangelog(a.id)).toHaveLength(1);
@@ -141,9 +142,9 @@ describe('db — documents', () => {
 
   it('upsertDocument with different hash creates a new version', () => {
     const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'one', children: [] }] };
-    const a = upsertDocument('/tmp/b.md', 'one', parsed, 'local_file', 0.5, 'cli');
+    const a = upsertDocument('/tmp/b.md', 'one', parsed, 'local_file', null, 0.5, 'cli');
     const parsed2 = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'two', children: [] }] };
-    const b = upsertDocument('/tmp/b.md', 'two', parsed2, 'local_file', 0.5, 'cli');
+    const b = upsertDocument('/tmp/b.md', 'two', parsed2, 'local_file', null, 0.5, 'cli');
     expect(b.id).toBe(a.id);
     expect(b.version).toBe(2);
     expect(b.raw_content).toBe('two');
@@ -157,7 +158,7 @@ describe('db — documents', () => {
         { node_type: 'section', heading: 'S', content: '## S', children: [{ node_type: 'bullet', content: '- b', children: [] }] },
       ],
     };
-    const doc = upsertDocument('/tmp/c.md', '## S\n- b', parsed, 'local_file', 0.5, 'cli');
+    const doc = upsertDocument('/tmp/c.md', '## S\n- b', parsed, 'local_file', null, 0.5, 'cli');
     const full = getDocumentWithNodes(doc.id)!;
     expect(full.nodes![0].heading).toBe('S');
     expect(full.nodes![0].children![0].node_type).toBe('bullet');

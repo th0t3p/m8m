@@ -59,7 +59,7 @@ function handleFileChange(path: string, platform: string): void {
   if (target?.last_hash === hash) return;
 
   const format = detectFileFormat(path);
-  const result = importFileAsDocument(path, platform as SourcePlatform, 'file_watcher');
+  const result = importFileAsDocument(path, null, platform as SourcePlatform, 'file_watcher');
 
   updateWatchTarget(path, hash);
   console.log(`[m8m watcher] ${path}: 1 document, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);

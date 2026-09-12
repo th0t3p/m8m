@@ -163,6 +163,7 @@ export function importBatch(entries: MemoryEntry[], detectedBy: DetectionSource)
 /** Import a local file as a structured document (tree nodes, raw content versioned). */
 export function importFileAsDocument(
   filePath: string,
+  provider: string | null,
   platform: SourcePlatform,
   detectedBy: DetectionSource,
 ): DocumentImportResult {
@@ -171,7 +172,7 @@ export function importFileAsDocument(
   const existing = getDocumentByPath(filePath);
   const isNew = !existing;
 
-  const doc = upsertDocument(filePath, rawContent, parsedDoc, platform, 0.5, detectedBy);
+  const doc = upsertDocument(filePath, rawContent, parsedDoc, platform, provider, 0.5, detectedBy);
   const nodes = getNodesForDocument(doc.id);
 
   return {

@@ -98,6 +98,7 @@ export interface MemoryDiff {
 export interface M8mConfig {
   db_path: string;                    // Default: ~/.m8m/m8m.db
   watch_paths: string[];              // Paths to watch for memory file changes
+  providers: ProviderConfig[];        // Agent-harness scan targets (defaults in providers.ts)
   dashboard_port: number;             // Default: 8808
   auto_snapshot_interval_minutes: number;  // Default: 60
   trust_levels: Record<SourceType, number>;
@@ -160,6 +161,7 @@ export interface MemoryDocument {
   file_format: string;
   title: string | null;
   raw_content: string;
+  provider: string | null;
   source_platform: SourcePlatform;
   trust_level: number;
   anomaly_score: number;
@@ -169,6 +171,7 @@ export interface MemoryDocument {
   last_seen: string;
   last_modified?: string;
   version: number;
+  node_count?: number;
   nodes?: MemoryNode[];
 }
 
@@ -225,6 +228,19 @@ export interface DocumentImportResult {
   nodes_added: number;
   nodes_modified: number;
   nodes_deleted: number;
+}
+
+export interface ProviderTarget {
+  path: string;
+  description: string;
+  isDir?: boolean;
+  extensions?: string[];
+}
+
+export interface ProviderConfig {
+  name: string;
+  platform: SourcePlatform;
+  targets: ProviderTarget[];
 }
 
 export const DEFAULT_TRUST_LEVELS: Record<SourceType, number> = {
