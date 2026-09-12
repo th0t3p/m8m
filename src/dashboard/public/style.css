@@ -261,6 +261,8 @@ body {
 }
 
 .chip:hover { color: var(--text); border-color: var(--border-strong); }
+.chip[hidden] { display: none; }
+.mem-section[hidden] { display: none; }
 .chip[aria-pressed="true"],
 .chip[aria-current="true"] {
   background: var(--raised);
@@ -783,6 +785,7 @@ tr:hover td { background: var(--surface); }
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
+.subnav[hidden] { display: none; }
 .section-title {
   margin: 0 0 var(--sp-3);
   font-size: var(--fs-sm);

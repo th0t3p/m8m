@@ -162,6 +162,7 @@ function highlightMatches(text, query) {
 // "Show full content" control. Measured, so short content gets no control.
 function decorateClamps(root) {
   for (const node of root.querySelectorAll('.clamp:not([data-measured])')) {
+    if (node.offsetParent === null) continue; // inside a hidden section: not laid out yet
     node.setAttribute('data-measured', '1');
     if (node.scrollHeight <= node.clientHeight + 2) continue;
     // A search hit below the visible snippet would be worse than useless, so
@@ -185,6 +186,51 @@ function decorateClamps(root) {
 }
 
 /* ------------------------------------------------------- section jump bar */
+
+/* ---------------------------------------------------------- global search */
+
+function queryNeedle() {
+  return ui.query.trim().toLowerCase();
+}
+
+/** True when any of the given values contains the current query. */
+function matchesQuery(...values) {
+  const needle = queryNeedle();
+  if (!needle) return true;
+  return values.some((value) => String(value ?? '').toLowerCase().includes(needle));
+}
+
+// The live search input, so "Clear search" can empty the box as well as the query.
+let searchField = null;
+
+/** Search box bound to the shared query; onChange re-renders that view's rows. */
+function searchInput({ label, placeholder }, onChange) {
+  const wrap = el('div', { class: 'search' });
+  wrap.appendChild(icon('search', 14));
+  searchField = el('input', {
+    type: 'search',
+    'aria-label': label,
+    placeholder,
+    value: ui.query,
+    oninput: (event) => { ui.query = event.target.value; onChange(); },
+    // the native clear (×) fires `search` in some browsers, `input` in others
+    onsearch: (event) => { ui.query = event.target.value; onChange(); },
+  });
+  wrap.appendChild(searchField);
+  return wrap;
+}
+
+function clearSearchButton(onChange) {
+  return el('button', {
+    class: 'btn ghost',
+    text: 'Clear search',
+    onclick: () => {
+      ui.query = '';
+      if (searchField) searchField.value = '';
+      onChange();
+    },
+  });
+}
 
 // Views that stack several long sections (Memories = agent + file) get a sticky
 // jump bar. The app routes on location.hash, so these are buttons that call
@@ -257,7 +303,9 @@ const trustBand = (t) => (t >= 0.7 ? 'high' : t >= 0.3 ? 'medium' : 'low');
 
 /* ------------------------------------------------------------- data layer */
 
-const ui = { timeline: 'all', security: 'unresolved', memories: { q: '', status: 'all', platform: 'all' } };
+// `query` is global: shared by every view, so a search started on Timeline still
+// applies when you move to Memories, Diff or Security.
+const ui = { query: '', timeline: 'all', security: 'unresolved', memories: { status: 'all', platform: 'all' } };
 const cache = new Map();
 
 async function api(path, options) {
@@ -340,9 +388,9 @@ function timelineRow(change) {
   );
 
   const body = el('div', { class: 'tl-body' });
-  body.appendChild(contentBlock(content || 'Status change (content unchanged)', { class: 'tl-content', lines: 2 }));
+  body.appendChild(contentBlock(content || 'Status change (content unchanged)', { class: 'tl-content', lines: 2, query: ui.query }));
   if (!isFile && change.change_type === 'modified' && change.old_content) {
-    body.appendChild(contentBlock(change.old_content, { class: 'tl-was', lines: 1 }));
+    body.appendChild(contentBlock(change.old_content, { class: 'tl-was', lines: 1, query: ui.query }));
   }
 
   const meta = el('div', { class: 'tl-meta' });
@@ -383,42 +431,76 @@ async function renderTimeline() {
     return;
   }
 
-  const counts = changes.reduce((acc, c) => {
-    acc[c.change_type] = (acc[c.change_type] || 0) + 1;
-    return acc;
-  }, {});
+  const listHost = el('div', {});
+  const toolbar = el('div', { class: 'toolbar' });
+  toolbar.appendChild(searchInput({ label: 'Search changes', placeholder: 'Search changes' }, renderRows));
+
   const filters = [['all', 'All'], ['created', 'Added'], ['modified', 'Modified'], ['status_changed', 'Status'], ['deleted', 'Deleted']];
-  const chips = el('div', { class: 'toolbar' });
+  const chipButtons = new Map();
   for (const [key, label] of filters) {
-    const count = key === 'all' ? changes.length : counts[key] || 0;
-    chips.appendChild(el('button', {
+    const button = el('button', {
       class: 'chip',
       'aria-pressed': String(ui.timeline === key),
-      onclick: () => { ui.timeline = key; renderTimeline().catch((e) => showError(e, refresh)); },
-    }, label, el('span', { class: 'n', text: String(count) })));
+      onclick: () => {
+        ui.timeline = key;
+        chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === key)));
+        renderRows();
+      },
+    }, label, el('span', { class: 'n', text: '0' }));
+    chipButtons.set(key, button);
+    toolbar.appendChild(button);
   }
-  $app.appendChild(chips);
+  $app.appendChild(toolbar);
+  $app.appendChild(listHost);
 
-  const rows = changes.filter((c) => ui.timeline === 'all' || c.change_type === ui.timeline);
-  if (!rows.length) {
-    $app.appendChild(emptyState('clock', 'No changes of this kind', 'Nothing has been recorded for this filter yet.',
-      el('button', { class: 'btn ghost', text: 'Show all changes', onclick: () => { ui.timeline = 'all'; renderTimeline().catch((e) => showError(e, refresh)); } })));
-    return;
-  }
+  function renderRows() {
+    listHost.innerHTML = '';
+    const matching = changes.filter((c) => matchesQuery(c.content, c.old_content, c.file_name, c.file_path, c.provider));
+    const counts = matching.reduce((acc, c) => {
+      acc[c.change_type] = (acc[c.change_type] || 0) + 1;
+      return acc;
+    }, {});
+    chipButtons.forEach((btn, key) => {
+      btn.querySelector('.n').textContent = String(key === 'all' ? matching.length : counts[key] || 0);
+    });
 
-  let currentDay = null;
-  for (const change of rows) {
-    const day = dayLabel(change.changed_at);
-    if (day !== currentDay) {
-      currentDay = day;
-      $app.appendChild(el('div', { class: 'tl-head' },
-        el('span', { text: day }),
-        el('span', { class: 'rule' }),
-      ));
+    const rows = matching.filter((c) => ui.timeline === 'all' || c.change_type === ui.timeline);
+    listHost.appendChild(el('div', { class: 'count', text: rows.length === changes.length
+      ? `${rows.length} changes`
+      : `${rows.length} of ${changes.length} changes` }));
+
+    if (!rows.length) {
+      listHost.appendChild(queryNeedle()
+        ? emptyState('search', 'No changes match', `Nothing matches "${ui.query.trim()}".`, clearSearchButton(renderRows))
+        : emptyState('clock', 'No changes of this kind', 'Nothing has been recorded for this filter yet.',
+          el('button', {
+            class: 'btn ghost',
+            text: 'Show all changes',
+            onclick: () => {
+              ui.timeline = 'all';
+              chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === 'all')));
+              renderRows();
+            },
+          })));
+      return;
     }
-    $app.appendChild(timelineRow(change));
+
+    let currentDay = null;
+    for (const change of rows) {
+      const day = dayLabel(change.changed_at);
+      if (day !== currentDay) {
+        currentDay = day;
+        listHost.appendChild(el('div', { class: 'tl-head' },
+          el('span', { text: day }),
+          el('span', { class: 'rule' }),
+        ));
+      }
+      listHost.appendChild(timelineRow(change));
+    }
+    decorateClamps(listHost);
   }
-  decorateClamps($app);
+
+  renderRows();
 }
 
 /* --------------------------------------------------------------- memories */
@@ -460,9 +542,9 @@ function memoriesTable(rows) {
   const tbody = el('tbody');
   for (const m of rows) {
     const content = el('td', {},
-      contentBlock(m.content, { class: 'cell-content', lines: 2, query: ui.memories.q }),
+      contentBlock(m.content, { class: 'cell-content', lines: 2, query: ui.query }),
       el('div', { class: 'cell-sub' },
-        el('span', { class: 'id', title: m.id }, highlightMatches(m.id.slice(0, 8), ui.memories.q)),
+        el('span', { class: 'id', title: m.id }, highlightMatches(m.id.slice(0, 8), ui.query)),
         el('span', { class: 'meta', text: `${categoryLabel(m.category)} · v${m.version} · seen ${timeAgo(m.last_seen)}` }),
       ),
     );
@@ -507,6 +589,23 @@ async function renderMemories() {
     return;
   }
 
+  // Search lives at page level (not inside a section) so it survives when a
+  // section hides itself — otherwise a query matching only file memories would
+  // take the search box away with the agent section.
+  const searchBar = el('div', { class: 'toolbar' });
+  searchBar.appendChild(searchInput({ label: 'Search memories', placeholder: 'Search agent and file memories' }, () => {
+    renderAgentList();
+    renderFiles();
+    syncSections();
+    decorateClamps($app);
+  }));
+  $app.appendChild(searchBar);
+
+  const noMatchHost = el('div', {});
+  $app.appendChild(noMatchHost);
+
+  let renderAgentList = () => {};
+
   const agentButton = el('button', {
     class: 'chip',
     type: 'button',
@@ -518,7 +617,8 @@ async function renderMemories() {
     type: 'button',
     onclick: () => jumpToSection(fileSection, fileButton),
   }, 'File memories', el('span', { class: 'n', text: String(files.length) }));
-  $app.appendChild(el('nav', { class: 'subnav', 'aria-label': 'Memory sections' }, agentButton, fileButton));
+  const nav = el('nav', { class: 'subnav', 'aria-label': 'Memory sections' }, agentButton, fileButton);
+  $app.appendChild(nav);
 
   // --- Agent memories (facts stored via the m8m MCP server) ---
   const agentSection = el('section', { class: 'mem-section' });
@@ -529,19 +629,6 @@ async function renderMemories() {
     const chipButtons = new Map();
 
     const toolbar = el('div', { class: 'toolbar' });
-    const search = el('div', { class: 'search' });
-    search.appendChild(icon('search', 14));
-    const input = el('input', {
-      type: 'search',
-      placeholder: 'Search content or id',
-      'aria-label': 'Search agent memories',
-      value: ui.memories.q,
-      oninput: (event) => { ui.memories.q = event.target.value; renderList(); },
-      // the native clear (×) fires `search` in some browsers, `input` in others
-      onsearch: (event) => { ui.memories.q = event.target.value; renderList(); },
-    });
-    search.appendChild(input);
-    toolbar.appendChild(search);
 
     const statuses = [['all', 'All'], ['active', 'Active'], ['quarantined', 'Quarantined'], ['flagged', 'Flagged']];
     for (const [key, label] of statuses) {
@@ -576,13 +663,11 @@ async function renderMemories() {
     agentSection.appendChild(listHost);
 
     function filtered() {
-      const q = ui.memories.q.trim().toLowerCase();
       return memories.filter((m) => {
         if (ui.memories.status === 'flagged' && !m.flags.length) return false;
         if (ui.memories.status !== 'all' && ui.memories.status !== 'flagged' && m.status !== ui.memories.status) return false;
         if (ui.memories.platform !== 'all' && m.source_platform !== ui.memories.platform) return false;
-        if (q && !(m.content.toLowerCase().includes(q) || m.id.startsWith(q))) return false;
-        return true;
+        return matchesQuery(m.content, m.id);
       });
     }
 
@@ -599,7 +684,8 @@ async function renderMemories() {
             class: 'btn ghost',
             text: 'Clear filters',
             onclick: () => {
-              ui.memories = { q: '', status: 'all', platform: 'all' };
+              ui.memories = { status: 'all', platform: 'all' };
+              ui.query = '';
               renderMemories().catch((e) => showError(e, refresh));
             },
           })));
@@ -612,6 +698,7 @@ async function renderMemories() {
       if (listHost.isConnected) decorateClamps(listHost);
     }
 
+    renderAgentList = renderList;
     renderList();
   } else {
     agentSection.appendChild(el('div', { class: 'meta', text: 'None yet — facts your agent stores through the m8m MCP server will appear here.' }));
@@ -620,14 +707,56 @@ async function renderMemories() {
 
   // --- File memories (local markdown/json imports) ---
   const fileSection = el('section', { class: 'mem-section' });
-  fileSection.appendChild(el('h2', { class: 'section-title', text: `File memories (${files.length})` }));
-  if (files.length) {
-    fileSection.appendChild(fileMemoriesTable(files));
-  } else {
-    fileSection.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
-  }
+  const fileTitle = el('h2', { class: 'section-title', text: `File memories (${files.length})` });
+  const fileHost = el('div', {});
+  fileSection.appendChild(fileTitle);
+  fileSection.appendChild(fileHost);
   $app.appendChild(fileSection);
-  watchSections([agentSection, fileSection], [agentButton, fileButton]);
+
+  function renderFiles() {
+    fileHost.innerHTML = '';
+    const rows = files.filter((d) => matchesQuery(d.file_name, d.file_path, d.provider));
+    fileTitle.textContent = `File memories (${rows.length === files.length ? rows.length : `${rows.length} of ${files.length}`})`;
+    if (!files.length) {
+      fileHost.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
+      return;
+    }
+    if (!rows.length) return; // nothing matches: syncSections() hides the section
+    fileHost.appendChild(fileMemoriesTable(rows));
+  }
+
+  // A section drops out when the search matches nothing inside it, so a query
+  // that only hits agent memories never leaves a table of unrelated file rows.
+  function syncSections() {
+    const needle = queryNeedle();
+    const agentHits = needle ? memories.filter((m) => matchesQuery(m.content, m.id)).length : memories.length;
+    const fileHits = needle ? files.filter((d) => matchesQuery(d.file_name, d.file_path, d.provider)).length : files.length;
+    const showAgent = !needle || agentHits > 0;
+    const showFile = !needle || fileHits > 0;
+
+    agentSection.hidden = !showAgent;
+    fileSection.hidden = !showFile;
+    agentButton.hidden = !showAgent;
+    fileButton.hidden = !showFile;
+    agentButton.querySelector('.n').textContent = String(agentHits);
+    fileButton.querySelector('.n').textContent = String(fileHits);
+    nav.hidden = !(showAgent && showFile);
+
+    noMatchHost.innerHTML = '';
+    if (!showAgent && !showFile) {
+      noMatchHost.appendChild(emptyState('search', 'No memories match',
+        `Nothing matches "${ui.query.trim()}" in agent or file memories.`,
+        clearSearchButton(() => { renderAgentList(); renderFiles(); syncSections(); })));
+    }
+
+    watchSections(
+      [agentSection, fileSection].filter((section) => !section.hidden),
+      [agentButton, fileButton].filter((button) => !button.hidden),
+    );
+  }
+
+  renderFiles();
+  syncSections();
   decorateClamps($app);
 }
 
@@ -645,7 +774,7 @@ function eventCard(event, memory, doc) {
   if (doc) {
     const nodeContent = event.details && event.details.node_content ? String(event.details.node_content) : '';
     card.appendChild(el('div', { class: 'quote' },
-      contentBlock(nodeContent || doc.file_name, { class: 'text', lines: 3 }),
+      contentBlock(nodeContent || doc.file_name, { class: 'text', lines: 3, query: ui.query }),
       el('div', { class: 'sub' },
         badge('file', 'accent'),
         el('span', { text: doc.file_name }),
@@ -656,7 +785,7 @@ function eventCard(event, memory, doc) {
     ));
   } else if (memory) {
     card.appendChild(el('div', { class: 'quote' },
-      contentBlock(memory.content, { class: 'text', lines: 3 }),
+      contentBlock(memory.content, { class: 'text', lines: 3, query: ui.query }),
       el('div', { class: 'sub' },
         badge(platform(memory.source_platform)),
         el('span', { text: `trust ${memory.trust_level.toFixed(2)}` }),
@@ -668,7 +797,7 @@ function eventCard(event, memory, doc) {
   }
 
   if (event.details && event.details.detail) {
-    card.appendChild(contentBlock(String(event.details.detail), { class: 'detail', lines: 2 }));
+    card.appendChild(contentBlock(String(event.details.detail), { class: 'detail', lines: 2, query: ui.query }));
   }
 
   if (event.resolved_at) {
@@ -723,42 +852,92 @@ async function renderSecurity() {
   }
 
   const filters = [
-    ['unresolved', 'Unresolved', unresolved.length],
-    ['all', 'All', events.length],
-    ['critical', 'Critical', events.filter((e) => e.severity === 'critical').length],
-    ['warning', 'Warning', events.filter((e) => e.severity === 'warning').length],
-    ['info', 'Info', events.filter((e) => e.severity === 'info').length],
+    ['unresolved', 'Unresolved'],
+    ['all', 'All'],
+    ['critical', 'Critical'],
+    ['warning', 'Warning'],
+    ['info', 'Info'],
   ];
   const chips = el('div', { class: 'toolbar' });
-  for (const [key, label, count] of filters) {
-    chips.appendChild(el('button', {
+  chips.appendChild(searchInput({ label: 'Search security events', placeholder: 'Search events' }, renderRows));
+  const chipButtons = new Map();
+  for (const [key, label] of filters) {
+    const button = el('button', {
       class: 'chip',
       'aria-pressed': String(ui.security === key),
-      onclick: () => { ui.security = key; renderSecurity().catch((e) => showError(e, refresh)); },
-    }, label, el('span', { class: 'n', text: String(count) })));
+      onclick: () => {
+        ui.security = key;
+        chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === key)));
+        renderRows();
+      },
+    }, label, el('span', { class: 'n', text: '0' }));
+    chipButtons.set(key, button);
+    chips.appendChild(button);
   }
   $app.appendChild(chips);
+  const listHost = el('div', {});
+  $app.appendChild(listHost);
 
-  const shown = events.filter((e) => {
-    if (ui.security === 'unresolved') return !e.resolved_at;
-    if (ui.security === 'all') return true;
-    return e.severity === ui.security;
-  });
-
-  if (!shown.length) {
-    $app.appendChild(emptyState('inbox', 'Nothing to review', 'No security events match this filter. Resolved events stay on record under "All".',
-      ui.security !== 'all' ? el('button', { class: 'btn ghost', text: 'Show all events', onclick: () => { ui.security = 'all'; renderSecurity().catch((e) => showError(e, refresh)); } }) : null));
-    return;
+  function eventMatches(event) {
+    const memory = event.memory_id ? byId.get(event.memory_id) : null;
+    const doc = event.document_id ? byDocId.get(event.document_id) : null;
+    return matchesQuery(
+      event.title,
+      event.details && event.details.detail,
+      event.details && event.details.node_content,
+      memory && memory.content,
+      doc && doc.file_name,
+    );
   }
 
-  for (const event of shown) {
-    $app.appendChild(eventCard(
-      event,
-      event.memory_id ? byId.get(event.memory_id) : null,
-      event.document_id ? byDocId.get(event.document_id) : null,
-    ));
+  function renderRows() {
+    listHost.innerHTML = '';
+    const matching = events.filter(eventMatches);
+    const counts = {
+      unresolved: matching.filter((e) => !e.resolved_at).length,
+      all: matching.length,
+      critical: matching.filter((e) => e.severity === 'critical').length,
+      warning: matching.filter((e) => e.severity === 'warning').length,
+      info: matching.filter((e) => e.severity === 'info').length,
+    };
+    chipButtons.forEach((btn, key) => { btn.querySelector('.n').textContent = String(counts[key]); });
+
+    const shown = matching.filter((e) => {
+      if (ui.security === 'unresolved') return !e.resolved_at;
+      if (ui.security === 'all') return true;
+      return e.severity === ui.security;
+    });
+    listHost.appendChild(el('div', { class: 'count', text: shown.length === events.length
+      ? `${shown.length} events`
+      : `${shown.length} of ${events.length} events` }));
+
+    if (!shown.length) {
+      listHost.appendChild(queryNeedle()
+        ? emptyState('search', 'No events match', `Nothing matches "${ui.query.trim()}".`, clearSearchButton(renderRows))
+        : emptyState('inbox', 'Nothing to review', 'No security events match this filter. Resolved events stay on record under "All".',
+          ui.security !== 'all' ? el('button', {
+            class: 'btn ghost',
+            text: 'Show all events',
+            onclick: () => {
+              ui.security = 'all';
+              chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === 'all')));
+              renderRows();
+            },
+          }) : null));
+      return;
+    }
+
+    for (const event of shown) {
+      listHost.appendChild(eventCard(
+        event,
+        event.memory_id ? byId.get(event.memory_id) : null,
+        event.document_id ? byDocId.get(event.document_id) : null,
+      ));
+    }
+    decorateClamps(listHost);
   }
-  decorateClamps($app);
+
+  renderRows();
 }
 
 /* ------------------------------------------------------------------- diff */
@@ -766,8 +945,8 @@ async function renderSecurity() {
 function diffRow(kind, sigil, after, before, entry) {
   const row = el('div', { class: `diff-row ${kind}` }, el('div', { class: 'sigil', text: sigil }));
   const body = el('div', {});
-  if (before) body.appendChild(contentBlock(before, { class: 'diff-before', lines: 2 }));
-  body.appendChild(contentBlock(after, { class: 'diff-after', lines: 3 }));
+  if (before) body.appendChild(contentBlock(before, { class: 'diff-before', lines: 2, query: ui.query }));
+  body.appendChild(contentBlock(after, { class: 'diff-after', lines: 3, query: ui.query }));
   body.appendChild(el('div', { class: 'diff-meta' },
     badge(platform(entry.source_platform)),
     el('span', { class: 'meta', text: timeAgo(entry.last_seen || entry.last_modified || entry.first_seen) }),
@@ -806,8 +985,8 @@ function fileDiffRow(change) {
   const isAdd = change.change_type === 'created';
   const row = el('div', { class: `diff-row ${isAdd ? 'added' : 'modified'}` }, el('div', { class: 'sigil', text: isAdd ? '+' : '~' }));
   const body = el('div', {});
-  body.appendChild(el('div', { class: 'cell-content', text: change.file_name }));
-  body.appendChild(el('div', { class: 'meta', text: change.file_path }));
+  body.appendChild(contentBlock(change.file_name, { class: 'cell-content', lines: 2, query: ui.query }));
+  body.appendChild(el('div', { class: 'meta' }, highlightMatches(change.file_path, ui.query)));
 
   if (change.old_content !== undefined && change.new_content !== undefined) {
     const pre = el('pre', { class: 'doc-raw diff-lines' });
@@ -847,34 +1026,52 @@ async function renderDiff() {
       el('button', { class: 'btn ghost', onclick: () => { invalidate(); refresh(); } }, icon('refresh'), 'Refresh'),
     ]));
 
-  $app.appendChild(el('div', { class: 'diff-summary' },
-    badge(`${data.added.length} added`, 'ok'),
-    badge(`${data.modified.length} modified`, 'warn'),
-    badge(`${data.deleted.length} deleted`, data.deleted.length ? 'crit' : ''),
-    badge(`${fileChanges.length} file changes`, 'accent'),
-  ));
+  const toolbar = el('div', { class: 'toolbar' });
+  toolbar.appendChild(searchInput({ label: 'Search diff', placeholder: 'Search changes' }, renderRows));
+  $app.appendChild(toolbar);
 
-  const hasAgent = Boolean(data.added.length || data.modified.length || data.deleted.length);
-  if (!hasAgent && !fileChanges.length) {
-    $app.appendChild(emptyState('check', 'No drift',
-      data.snapshot
-        ? 'Every memory matches the baseline snapshot.'
-        : 'Take a snapshot to record a baseline; later changes will be listed here.'));
-    return;
+  const listHost = el('div', {});
+  $app.appendChild(listHost);
+
+  function renderRows() {
+    listHost.innerHTML = '';
+    const added = data.added.filter((entry) => matchesQuery(entry.content, entry.source_platform));
+    const modified = data.modified.filter((item) => matchesQuery(item.after && item.after.content, item.before && item.before.content));
+    const deleted = data.deleted.filter((entry) => matchesQuery(entry.content));
+    const fileRows = fileChanges.filter((change) => matchesQuery(change.file_name, change.file_path, change.provider));
+
+    listHost.appendChild(el('div', { class: 'diff-summary' },
+      badge(`${added.length} added`, 'ok'),
+      badge(`${modified.length} modified`, 'warn'),
+      badge(`${deleted.length} deleted`, deleted.length ? 'crit' : ''),
+      badge(`${fileRows.length} file changes`, 'accent'),
+    ));
+
+    if (!added.length && !modified.length && !deleted.length && !fileRows.length) {
+      listHost.appendChild(queryNeedle()
+        ? emptyState('search', 'No changes match', `Nothing matches "${ui.query.trim()}".`, clearSearchButton(renderRows))
+        : emptyState('check', 'No drift',
+          data.snapshot
+            ? 'Every memory matches the baseline snapshot.'
+            : 'Take a snapshot to record a baseline; later changes will be listed here.'));
+      return;
+    }
+
+    for (const entry of added) listHost.appendChild(diffRow('added', '+', entry.content, null, entry));
+    for (const item of modified) listHost.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
+    for (const entry of deleted) listHost.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+
+    if (fileRows.length) {
+      listHost.appendChild(el('h2', {
+        class: 'section-title',
+        text: `File memories (${fileRows.length === fileChanges.length ? fileRows.length : `${fileRows.length} of ${fileChanges.length}`} changes)`,
+      }));
+      for (const change of fileRows) listHost.appendChild(fileDiffRow(change));
+    }
+    decorateClamps(listHost);
   }
 
-  if (hasAgent) {
-    for (const entry of data.added) $app.appendChild(diffRow('added', '+', entry.content, null, entry));
-    for (const item of data.modified) $app.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
-    for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
-  }
-
-  if (fileChanges.length) {
-    $app.appendChild(el('h2', { class: 'section-title', text: `File memories (${fileChanges.length} changes)` }));
-    for (const change of fileChanges) $app.appendChild(fileDiffRow(change));
-  }
-
-  decorateClamps($app);
+  renderRows();
 }
 
 /* -------------------------------------------------------------- documents */
@@ -907,10 +1104,10 @@ function fileMemoriesTable(files) {
 
     tbody.appendChild(el('tr', {},
       el('td', {},
-        el('div', { class: 'cell-content', text: d.file_name }),
+        contentBlock(d.file_name, { class: 'cell-content', lines: 2, query: ui.query }),
         el('div', { class: 'cell-sub' },
           el('span', { class: 'id', text: d.id.slice(0, 8), title: d.id }),
-          el('span', { class: 'meta', text: d.file_path }),
+          el('span', { class: 'meta' }, highlightMatches(d.file_path, ui.query)),
         ),
       ),
       el('td', {}, badge(d.provider || platform(d.source_platform))),
