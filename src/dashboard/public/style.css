@@ -60,6 +60,8 @@
   --pill: 999px;
   --dur: 150ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* kept in sync with the real bar height by syncTopbarHeight() (it wraps on phones) */
+  --topbar-h: 56px;
 }
 
 * { box-sizing: border-box; }
@@ -752,8 +754,27 @@ tr:hover td { background: var(--surface); }
 }
 
 /* Memories sections (agent vs file) */
-.mem-section { margin-bottom: var(--sp-5); }
+.mem-section {
+  margin-bottom: var(--sp-5);
+  /* clears the sticky top bar + jump bar when jumped to */
+  scroll-margin-top: calc(var(--topbar-h, 56px) + 52px);
+}
 .mem-section + .mem-section { border-top: 1px solid var(--border); padding-top: var(--sp-4); }
+
+/* Jump bar for views that stack more than one long section (Memories: agent +
+   file). Stays put so you can hop back without scrolling to the top. */
+.subnav {
+  position: sticky;
+  top: var(--topbar-h, 56px);
+  z-index: 15;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  margin-bottom: var(--sp-3);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
 .section-title {
   margin: 0 0 var(--sp-3);
   font-size: var(--fs-sm);

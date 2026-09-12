@@ -152,6 +152,48 @@ function decorateClamps(root) {
   }
 }
 
+/* ------------------------------------------------------- section jump bar */
+
+// Views that stack several long sections (Memories = agent + file) get a sticky
+// jump bar. The app routes on location.hash, so these are buttons that call
+// scrollIntoView — a plain `#anchor` link would be read as a route change.
+let sectionObserver = null;
+
+function syncTopbarHeight() {
+  const bar = document.querySelector('.topbar');
+  if (bar) document.documentElement.style.setProperty('--topbar-h', `${Math.round(bar.getBoundingClientRect().height)}px`);
+}
+
+function jumpToSection(section, button) {
+  if (!section) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  section.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  const heading = section.querySelector('.section-title');
+  if (heading) {
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({ preventScroll: true });
+  }
+  if (button) {
+    for (const sibling of button.parentElement.querySelectorAll('.chip')) {
+      sibling.setAttribute('aria-current', String(sibling === button));
+    }
+  }
+}
+
+function watchSections(sections, buttons) {
+  if (sectionObserver) sectionObserver.disconnect();
+  if (!('IntersectionObserver' in window)) return;
+  sectionObserver = new IntersectionObserver((entries) => {
+    const visible = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+    if (!visible) return;
+    const index = sections.indexOf(visible.target);
+    buttons.forEach((btn, i) => btn.setAttribute('aria-current', String(i === index)));
+  }, { rootMargin: '-130px 0px -60% 0px' });
+  for (const section of sections) sectionObserver.observe(section);
+}
+
 function timeAgo(iso) {
   if (!iso) return '';
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -433,6 +475,19 @@ async function renderMemories() {
     return;
   }
 
+  const agentButton = el('button', {
+    class: 'chip',
+    type: 'button',
+    'aria-current': 'true',
+    onclick: () => jumpToSection(agentSection, agentButton),
+  }, 'Agent memories', el('span', { class: 'n', text: String(memories.length) }));
+  const fileButton = el('button', {
+    class: 'chip',
+    type: 'button',
+    onclick: () => jumpToSection(fileSection, fileButton),
+  }, 'File memories', el('span', { class: 'n', text: String(files.length) }));
+  $app.appendChild(el('nav', { class: 'subnav', 'aria-label': 'Memory sections' }, agentButton, fileButton));
+
   // --- Agent memories (facts stored via the m8m MCP server) ---
   const agentSection = el('section', { class: 'mem-section' });
   agentSection.appendChild(el('h2', { class: 'section-title', text: `Agent memories (${memories.length})` }));
@@ -538,6 +593,7 @@ async function renderMemories() {
     fileSection.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
   }
   $app.appendChild(fileSection);
+  watchSections([agentSection, fileSection], [agentButton, fileButton]);
   decorateClamps($app);
 }
 
@@ -907,6 +963,7 @@ function activateTab(key) {
 }
 
 function refresh() {
+  syncTopbarHeight();
   const active = document.querySelector('.tab[aria-current="page"]') || document.querySelector('.tab');
   const view = views[active?.dataset.view] || renderTimeline;
   $app.setAttribute('aria-busy', 'true');
@@ -930,6 +987,7 @@ document.querySelectorAll('.tab').forEach((link) => {
 });
 
 window.addEventListener('hashchange', renderRoute);
+window.addEventListener('resize', syncTopbarHeight);
 
 // Initial load: honor the URL hash, normalizing an empty one to #/timeline.
 if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_VIEW}`);
