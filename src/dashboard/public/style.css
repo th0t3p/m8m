@@ -786,6 +786,9 @@ tr:hover td { background: var(--surface); }
   border-bottom: 1px solid var(--border);
 }
 .subnav[hidden] { display: none; }
+.subnav .search { flex: 0 1 420px; min-width: 200px; }
+.subnav .search input { width: 100%; min-width: 0; }
+.switch { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
 .section-title {
   margin: 0 0 var(--sp-3);
   font-size: var(--fs-sm);

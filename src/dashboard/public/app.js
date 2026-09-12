@@ -589,17 +589,18 @@ async function renderMemories() {
     return;
   }
 
-  // Search lives at page level (not inside a section) so it survives when a
-  // section hides itself — otherwise a query matching only file memories would
-  // take the search box away with the agent section.
-  const searchBar = el('div', { class: 'toolbar' });
-  searchBar.appendChild(searchInput({ label: 'Search memories', placeholder: 'Search agent and file memories' }, () => {
+  // Search and the section switches share one sticky row. Search lives at page
+  // level (not inside a section) so it survives when a section hides itself —
+  // otherwise a query matching only file memories would take the box away with
+  // the agent section. The row itself always stays, so the box is always there.
+  const controlBar = el('div', { class: 'subnav' });
+  controlBar.appendChild(searchInput({ label: 'Search memories', placeholder: 'Search agent and file memories' }, () => {
     renderAgentList();
     renderFiles();
     syncSections();
     decorateClamps($app);
   }));
-  $app.appendChild(searchBar);
+  $app.appendChild(controlBar);
 
   const noMatchHost = el('div', {});
   $app.appendChild(noMatchHost);
@@ -617,8 +618,7 @@ async function renderMemories() {
     type: 'button',
     onclick: () => jumpToSection(fileSection, fileButton),
   }, 'File memories', el('span', { class: 'n', text: String(files.length) }));
-  const nav = el('nav', { class: 'subnav', 'aria-label': 'Memory sections' }, agentButton, fileButton);
-  $app.appendChild(nav);
+  controlBar.appendChild(el('div', { class: 'switch', role: 'group', 'aria-label': 'Jump to section' }, agentButton, fileButton));
 
   // --- Agent memories (facts stored via the m8m MCP server) ---
   const agentSection = el('section', { class: 'mem-section' });
@@ -740,8 +740,6 @@ async function renderMemories() {
     fileButton.hidden = !showFile;
     agentButton.querySelector('.n').textContent = String(agentHits);
     fileButton.querySelector('.n').textContent = String(fileHits);
-    nav.hidden = !(showAgent && showFile);
-
     noMatchHost.innerHTML = '';
     if (!showAgent && !showFile) {
       noMatchHost.appendChild(emptyState('search', 'No memories match',
@@ -1026,9 +1024,24 @@ async function renderDiff() {
       el('button', { class: 'btn ghost', onclick: () => { invalidate(); refresh(); } }, icon('refresh'), 'Refresh'),
     ]));
 
-  const toolbar = el('div', { class: 'toolbar' });
-  toolbar.appendChild(searchInput({ label: 'Search diff', placeholder: 'Search changes' }, renderRows));
-  $app.appendChild(toolbar);
+  // Same control row as Memories: search on the left, section switch beside it.
+  const controlBar = el('div', { class: 'subnav' });
+  controlBar.appendChild(searchInput({ label: 'Search diff', placeholder: 'Search changes' }, renderRows));
+  let agentBlock = null;
+  let fileBlock = null;
+  const changesButton = el('button', {
+    class: 'chip',
+    type: 'button',
+    'aria-current': 'true',
+    onclick: () => jumpToSection(agentBlock, changesButton),
+  }, 'Memory changes', el('span', { class: 'n', text: '0' }));
+  const filesButton = el('button', {
+    class: 'chip',
+    type: 'button',
+    onclick: () => jumpToSection(fileBlock, filesButton),
+  }, 'File memories', el('span', { class: 'n', text: '0' }));
+  controlBar.appendChild(el('div', { class: 'switch', role: 'group', 'aria-label': 'Jump to section' }, changesButton, filesButton));
+  $app.appendChild(controlBar);
 
   const listHost = el('div', {});
   $app.appendChild(listHost);
@@ -1047,6 +1060,14 @@ async function renderDiff() {
       badge(`${fileRows.length} file changes`, 'accent'),
     ));
 
+    const agentCount = added.length + modified.length + deleted.length;
+    changesButton.querySelector('.n').textContent = String(agentCount);
+    filesButton.querySelector('.n').textContent = String(fileRows.length);
+    changesButton.hidden = agentCount === 0;
+    filesButton.hidden = fileRows.length === 0;
+    agentBlock = null;
+    fileBlock = null;
+
     if (!added.length && !modified.length && !deleted.length && !fileRows.length) {
       listHost.appendChild(queryNeedle()
         ? emptyState('search', 'No changes match', `Nothing matches "${ui.query.trim()}".`, clearSearchButton(renderRows))
@@ -1057,17 +1078,29 @@ async function renderDiff() {
       return;
     }
 
-    for (const entry of added) listHost.appendChild(diffRow('added', '+', entry.content, null, entry));
-    for (const item of modified) listHost.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
-    for (const entry of deleted) listHost.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+    if (agentCount) {
+      agentBlock = el('section', { class: 'mem-section' });
+      agentBlock.appendChild(el('h2', { class: 'section-title', text: `Memory changes (${agentCount})` }));
+      for (const entry of added) agentBlock.appendChild(diffRow('added', '+', entry.content, null, entry));
+      for (const item of modified) agentBlock.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
+      for (const entry of deleted) agentBlock.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+      listHost.appendChild(agentBlock);
+    }
 
     if (fileRows.length) {
-      listHost.appendChild(el('h2', {
+      fileBlock = el('section', { class: 'mem-section' });
+      fileBlock.appendChild(el('h2', {
         class: 'section-title',
         text: `File memories (${fileRows.length === fileChanges.length ? fileRows.length : `${fileRows.length} of ${fileChanges.length}`} changes)`,
       }));
-      for (const change of fileRows) listHost.appendChild(fileDiffRow(change));
+      for (const change of fileRows) fileBlock.appendChild(fileDiffRow(change));
+      listHost.appendChild(fileBlock);
     }
+
+    watchSections(
+      [agentBlock, fileBlock].filter(Boolean),
+      [changesButton, filesButton].filter((button) => !button.hidden),
+    );
     decorateClamps(listHost);
   }
 
