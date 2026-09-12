@@ -448,11 +448,11 @@ tr:hover td { background: var(--surface); }
   background: var(--raised);
   overflow: hidden;
 }
-.trust-fill { display: block; height: 100%; background: var(--signal-ok); }
+/* Monochrome on purpose — the bar shows how much trust there is, the number
+   shows the value, and the band (high/medium/low) rides along in the tooltip.
+   Keeps the palette off a fourth hue in a column that repeats 20+ times. */
+.trust-fill { display: block; height: 100%; background: var(--text); }
 .trust-value { font-family: var(--mono); font-size: var(--fs-xs); }
-.trust.high .trust-fill { background: var(--signal-ok); }
-.trust.medium .trust-fill { background: var(--signal-warn); }
-.trust.low .trust-fill { background: var(--signal-crit); }
 
 .flag-list { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
 .row-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
