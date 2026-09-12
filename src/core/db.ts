@@ -998,6 +998,27 @@ export function getDocumentChangelog(documentId: string): DocumentChangelog[] {
   return (rows as any[]).map(rowToDocChangelog);
 }
 
+/** Every file-memory change across all documents, joined with file metadata. */
+export function getAllDocumentChanges(): Array<
+  DocumentChangelog & { file_name: string; file_path: string; source_platform: SourcePlatform; provider: string | null }
+> {
+  const rows = requireDb()
+    .prepare(
+      `SELECT dc.*, md.file_name, md.file_path, md.source_platform, md.provider
+       FROM document_changelog dc
+       LEFT JOIN memory_documents md ON md.id = dc.document_id
+       ORDER BY dc.changed_at DESC`,
+    )
+    .all() as any[];
+  return rows.map((r) => ({
+    ...rowToDocChangelog(r),
+    file_name: r.file_name ?? 'unknown',
+    file_path: r.file_path ?? '',
+    source_platform: (r.source_platform ?? 'unknown') as SourcePlatform,
+    provider: r.provider ?? null,
+  }));
+}
+
 /** Merge agent-memory changes and file-memory changes into one timeline. */
 export function getTimeline(): TimelineEvent[] {
   const d = requireDb();

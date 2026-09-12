@@ -4,6 +4,7 @@ import { Router } from 'express';
 import {
   createSnapshot,
   flagMemory,
+  getAllDocumentChanges,
   getAllDocuments,
   getAllMemories,
   getAllSnapshots,
@@ -117,13 +118,18 @@ export function registerApi(): Router {
     const since = req.query.since as string | undefined;
     if (since) {
       const changelog = getChangelog({ since });
-      return res.json({ since, changelog });
+      return res.json({ since, changelog, file_changes: getAllDocumentChanges() });
     }
     const snapshots = getAllSnapshots();
     const latest = snapshots[0];
     const current = getAllMemories();
     const diff = diffMemories(latest ? latest.snapshot_data : [], current);
-    res.json({ snapshot: latest?.id ?? null, snapshot_taken_at: latest?.taken_at ?? null, ...diff });
+    res.json({
+      snapshot: latest?.id ?? null,
+      snapshot_taken_at: latest?.taken_at ?? null,
+      ...diff,
+      file_changes: getAllDocumentChanges(),
+    });
   });
 
   router.get('/api/events', (req, res) => {

@@ -687,9 +687,65 @@ function diffRow(kind, sigil, after, before, entry) {
   return row;
 }
 
+/** Minimal LCS line diff, returned as `[sigil, line]` pairs (`+`, `-`, ` `). */
+function diffLines(oldText, newText) {
+  const a = String(oldText ?? '').split('\n');
+  const b = String(newText ?? '').split('\n');
+  const n = a.length;
+  const m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { out.push([' ', a[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push(['-', a[i]]); i++; }
+    else { out.push(['+', b[j]]); j++; }
+  }
+  while (i < n) out.push(['-', a[i++]]);
+  while (j < m) out.push(['+', b[j++]]);
+  return out;
+}
+
+function fileDiffRow(change) {
+  const isAdd = change.change_type === 'created';
+  const row = el('div', { class: `diff-row ${isAdd ? 'added' : 'modified'}` }, el('div', { class: 'sigil', text: isAdd ? '+' : '~' }));
+  const body = el('div', {});
+  body.appendChild(el('div', { class: 'cell-content', text: change.file_name }));
+  body.appendChild(el('div', { class: 'meta', text: change.file_path }));
+
+  if (change.old_content !== undefined && change.new_content !== undefined) {
+    const pre = el('pre', { class: 'doc-raw diff-lines' });
+    for (const [sigil, line] of diffLines(change.old_content, change.new_content)) {
+      pre.appendChild(el('span', {
+        class: sigil === '-' ? 'diff-del' : sigil === '+' ? 'diff-add' : '',
+        text: `${sigil === ' ' ? ' ' : sigil} ${line}\n`,
+      }));
+    }
+    body.appendChild(pre);
+  } else {
+    body.appendChild(el('div', { class: 'diff-after', text: `+${change.nodes_added} ~${change.nodes_modified} -${change.nodes_deleted} nodes` }));
+  }
+
+  body.appendChild(el('div', { class: 'diff-meta' },
+    badge('file', 'accent'),
+    badge(change.provider || platform(change.source_platform)),
+    el('span', { class: 'meta', text: timeAgo(change.changed_at) }),
+    el('span', { class: 'id', text: (change.document_id || '').slice(0, 8), title: change.document_id }),
+  ));
+  row.appendChild(body);
+  return row;
+}
+
 async function renderDiff() {
   loading(3);
   const data = await load('diff', '/api/diff');
+  const fileChanges = data.file_changes || [];
   $app.innerHTML = '';
 
   $app.appendChild(pageHead('Diff',
@@ -705,9 +761,11 @@ async function renderDiff() {
     badge(`${data.added.length} added`, 'ok'),
     badge(`${data.modified.length} modified`, 'warn'),
     badge(`${data.deleted.length} deleted`, data.deleted.length ? 'crit' : ''),
+    badge(`${fileChanges.length} file changes`, 'accent'),
   ));
 
-  if (!data.added.length && !data.modified.length && !data.deleted.length) {
+  const hasAgent = Boolean(data.added.length || data.modified.length || data.deleted.length);
+  if (!hasAgent && !fileChanges.length) {
     $app.appendChild(emptyState('check', 'No drift',
       data.snapshot
         ? 'Every memory matches the baseline snapshot.'
@@ -715,9 +773,17 @@ async function renderDiff() {
     return;
   }
 
-  for (const entry of data.added) $app.appendChild(diffRow('added', '+', entry.content, null, entry));
-  for (const item of data.modified) $app.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
-  for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+  if (hasAgent) {
+    for (const entry of data.added) $app.appendChild(diffRow('added', '+', entry.content, null, entry));
+    for (const item of data.modified) $app.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
+    for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+  }
+
+  if (fileChanges.length) {
+    $app.appendChild(el('h2', { class: 'section-title', text: `File memories (${fileChanges.length} changes)` }));
+    for (const change of fileChanges) $app.appendChild(fileDiffRow(change));
+  }
+
   decorateClamps($app);
 }
 
