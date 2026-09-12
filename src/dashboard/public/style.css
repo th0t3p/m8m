@@ -615,6 +615,12 @@ tr:hover td { background: var(--surface); }
 .rollback-head .title { font-size: var(--fs-lg); font-weight: 600; }
 .rollback-note { color: var(--text-dim); font-size: var(--fs-sm); max-width: 78ch; }
 .rollback-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); }
+.rollback-group {
+  margin-top: var(--sp-4);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
 
 .bucket { margin-top: var(--sp-4); }
 .bucket-head {

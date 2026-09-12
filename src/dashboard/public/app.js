@@ -1057,46 +1057,85 @@ function rollbackBucket(variant, label, count) {
   return { box, list };
 }
 
-function renderSnapshotRollback(panel, snapshot, diff) {
-  const total = diff.added.length + diff.modified.length + diff.deleted.length;
+function renderSnapshotRollback(panel, snapshot, preview) {
+  // Preview shape: { entries: MemoryDiff, documents: { restored, removed } }.
+  const diff = preview.entries ?? { added: [], modified: [], deleted: [], unchanged_count: 0 };
+  const docs = preview.documents ?? { restored: [], removed: [] };
+  // An entry the snapshot itself recorded as deleted is not "restored" — that is
+  // a no-op, so keep it out of the count and out of the list.
+  const restorable = diff.added.filter((entry) => entry.status !== 'deleted');
+  const agentTotal = restorable.length + diff.modified.length + diff.deleted.length;
+  const fileTotal = docs.restored.length + docs.removed.length;
+  const total = agentTotal + fileTotal;
+
   panel.appendChild(el('div', { class: 'rollback-head' },
     icon('alert', 16),
     el('span', { class: 'title', text: `Roll back to snapshot ${snapshot.id.slice(0, 8)}?` }),
   ));
   panel.appendChild(el('div', { class: 'rollback-note', text: total
-    ? `Agent memories are rewritten to match the snapshot taken ${timeAgo(snapshot.taken_at)}; ${diff.unchanged_count} already match and stay untouched. File memories are not affected — they roll back from the File memories table.`
+    ? `Agent memories and file memories are rewound to the snapshot taken ${timeAgo(snapshot.taken_at)}. Restoring a file memory writes its earlier content back to the file on disk. ${diff.unchanged_count} agent memories already match and stay untouched.`
     : 'Nothing to change — the store already matches this snapshot.' }));
 
-  if (diff.added.length) {
-    const { box, list } = rollbackBucket('ok', 'Will be restored', diff.added.length);
-    for (const entry of diff.added) {
-      list.appendChild(el('div', { class: 'bucket-item' }, contentBlock(entry.content, { lines: 2 })));
+  if (agentTotal) {
+    panel.appendChild(el('div', { class: 'rollback-group', text: 'Agent memories' }));
+
+    if (restorable.length) {
+      const { box, list } = rollbackBucket('ok', 'Will be restored', restorable.length);
+      for (const entry of restorable) {
+        list.appendChild(el('div', { class: 'bucket-item' }, contentBlock(entry.content, { lines: 2 })));
+      }
+      panel.appendChild(box);
     }
-    panel.appendChild(box);
+
+    if (diff.modified.length) {
+      const { box, list } = rollbackBucket('warn', 'Will be reverted', diff.modified.length);
+      for (const item of diff.modified) {
+        list.appendChild(el('div', { class: 'bucket-item' },
+          el('span', { class: 'label', text: 'now' }),
+          contentBlock(item.before.content, { class: 'diff-before', lines: 2 }),
+          el('span', { class: 'label', text: 'after rollback' }),
+          contentBlock(item.after.content, { class: 'diff-after', lines: 2 }),
+        ));
+      }
+      panel.appendChild(box);
+    }
+
+    if (diff.deleted.length) {
+      const { box, list } = rollbackBucket('crit', 'Will be removed', diff.deleted.length);
+      for (const entry of diff.deleted) {
+        list.appendChild(el('div', { class: 'bucket-item' },
+          el('span', { class: 'label', text: 'now' }),
+          contentBlock(entry.content, { class: 'diff-before', lines: 2 }),
+        ));
+      }
+      panel.appendChild(box);
+    }
   }
 
-  if (diff.modified.length) {
-    const { box, list } = rollbackBucket('warn', 'Will be reverted', diff.modified.length);
-    for (const item of diff.modified) {
-      list.appendChild(el('div', { class: 'bucket-item' },
-        el('span', { class: 'label', text: 'now' }),
-        contentBlock(item.before.content, { class: 'diff-before', lines: 2 }),
-        el('span', { class: 'label', text: 'after rollback' }),
-        contentBlock(item.after.content, { class: 'diff-after', lines: 2 }),
-      ));
-    }
-    panel.appendChild(box);
-  }
+  if (fileTotal) {
+    panel.appendChild(el('div', { class: 'rollback-group', text: 'File memories' }));
 
-  if (diff.deleted.length) {
-    const { box, list } = rollbackBucket('crit', 'Will be removed', diff.deleted.length);
-    for (const entry of diff.deleted) {
-      list.appendChild(el('div', { class: 'bucket-item' },
-        el('span', { class: 'label', text: 'now' }),
-        contentBlock(entry.content, { class: 'diff-before', lines: 2 }),
-      ));
+    if (docs.restored.length) {
+      const { box, list } = rollbackBucket('ok', 'Written back to disk', docs.restored.length);
+      for (const doc of docs.restored) {
+        list.appendChild(el('div', { class: 'bucket-item' },
+          el('div', { class: 'cell-content', text: doc.file_name }),
+          el('div', { class: 'meta', text: doc.file_path }),
+        ));
+      }
+      panel.appendChild(box);
     }
-    panel.appendChild(box);
+
+    if (docs.removed.length) {
+      const { box, list } = rollbackBucket('crit', 'Removed from the store', docs.removed.length);
+      for (const doc of docs.removed) {
+        list.appendChild(el('div', { class: 'bucket-item' },
+          el('div', { class: 'cell-content', text: doc.file_name }),
+          el('div', { class: 'meta', text: doc.file_path }),
+        ));
+      }
+      panel.appendChild(box);
+    }
   }
 
   panel.appendChild(el('div', { class: 'rollback-actions' },
@@ -1231,7 +1270,7 @@ async function renderDiff() {
     if (snapshots.length) {
       snapBlock = el('section', { class: 'mem-section' });
       snapBlock.appendChild(el('h2', { class: 'section-title', text: `Snapshots (${snapshots.length})` }));
-      snapBlock.appendChild(el('div', { class: 'meta', text: 'Rolling back rewrites agent memories to match a snapshot. File memories keep their own history.' }));
+      snapBlock.appendChild(el('div', { class: 'meta', text: 'Rolling back rewinds agent memories and file memories to a snapshot — files are written back to disk. Preview before you confirm.' }));
       for (const snapshot of snapshots) snapBlock.appendChild(snapshotRow(snapshot));
       listHost.appendChild(snapBlock);
     } else if (!snapshotFeed.ok) {
