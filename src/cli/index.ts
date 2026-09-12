@@ -6,6 +6,7 @@ import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import { initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
+  clearAllMemories,
   createSnapshot,
   flagMemory,
   getAllMemories,
@@ -219,6 +220,29 @@ program
     unflagMemory(id, 'cli');
     updateMemoryStatus(id, 'dismissed', 'cli');
     console.log(`Dismissed ${id}`);
+  });
+
+// --- Clear --------------------------------------------------------------
+program
+  .command('clear')
+  .description('Clear all stored memories (soft-delete)')
+  .option('-f, --force', 'Skip the confirmation prompt')
+  .action(async (opts: { force?: boolean }) => {
+    ensureDb();
+    const count = getAllMemories().filter((m) => m.status !== 'deleted').length;
+    if (count === 0) {
+      console.log('No active memories to clear.');
+      return;
+    }
+    if (!opts.force) {
+      const ok = await confirm(`Clear all ${count} memories? This soft-deletes them (kept in changelog). [y/N] `);
+      if (!ok) {
+        console.log('Aborted. Re-run with -f to skip this prompt.');
+        return;
+      }
+    }
+    const cleared = clearAllMemories('cli');
+    console.log(`Cleared ${cleared} memories (soft-deleted). Run \`m8m audit\` to review.`);
   });
 
 // --- Import -------------------------------------------------------------

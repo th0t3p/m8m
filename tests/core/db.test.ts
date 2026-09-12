@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  clearAllMemories,
   createSecurityEvent,
   createSnapshot,
   deleteMemory,
@@ -63,6 +64,15 @@ describe('db — delete and status', () => {
     updateMemoryStatus(e.id, 'quarantined', 'cli');
     expect(getMemory(e.id)?.status).toBe('quarantined');
     expect(getChangelog().some((c) => c.change_type === 'status_changed')).toBe(true);
+  });
+
+  it('clears all memories as soft-deletes', () => {
+    upsertMemory({ content: 'a', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    upsertMemory({ content: 'b', source_type: 'document', source_platform: 'local_file' }, 'cli');
+    const cleared = clearAllMemories('cli');
+    expect(cleared).toBe(2);
+    expect(getAllMemories().filter((m) => m.status !== 'deleted')).toHaveLength(0);
+    expect(getChangelog().filter((c) => c.change_type === 'deleted')).toHaveLength(2);
   });
 });
 

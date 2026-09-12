@@ -89,6 +89,7 @@ m8m audit
 | `m8m quarantine <id>` | Quarantine a suspicious memory |
 | `m8m restore <id>` | Restore from quarantine |
 | `m8m dismiss <id>` | Clear flags + dismiss |
+| `m8m clear [-f]` | Clear all stored memories (soft-delete) |
 | `m8m import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
 | `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
 | `m8m snapshot [--platform <p>]` | Manual snapshot for diffing |

@@ -440,6 +440,15 @@ export function deleteMemory(id: string, detectedBy: DetectionSource): void {
   });
 }
 
+/** Soft-delete every non-deleted memory. Returns the number cleared. */
+export function clearAllMemories(detectedBy: DetectionSource): number {
+  const memories = getAllMemories().filter((m) => m.status !== 'deleted');
+  for (const m of memories) {
+    deleteMemory(m.id, detectedBy);
+  }
+  return memories.length;
+}
+
 export function updateMemoryStatus(
   id: string,
   status: MemoryStatus,
