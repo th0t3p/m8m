@@ -11,7 +11,9 @@ from, what changed, and whether anything looks suspicious. Four cooperating
 pieces share one local SQLite database:
 
 - **MCP server** — live memory operations as your agent works
-- **File watcher** — tracks local memory files (`MEMORY.md`, `CLAUDE.md`, …)
+- **File watcher** — tracks local memory files (`MEMORY.md`, `CLAUDE.md`, …);
+  it runs automatically inside the MCP server (and can also run standalone via
+  `m8m watch`)
 - **CLI** — query and audit memory state from the terminal
 - **Local dashboard** — a dark, browser-based visualization
 
@@ -102,7 +104,7 @@ m8m audit
 | `m8m snapshot [--platform <p>]` | Manual snapshot for diffing |
 | `m8m diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
 | `m8m audit [--severity critical] [--resolved]` | List security events |
-| `m8m watch` | Start the file watcher (foreground) |
+| `m8m watch` | Start the file watcher standalone (foreground — optional; the MCP server already runs it) |
 | `m8m dashboard [--port <p>]` | Start the web dashboard (default 8808) |
 | `m8m mcp` | Start the MCP server (stdio) |
 | `m8m config` | Show config |
@@ -133,6 +135,12 @@ $ m8m status
 
 m8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`, and
 `m8m_flag` over stdio.
+
+> **The MCP server also runs the file watcher.** While any client is connected,
+> it watches your memory files (`watch_paths`, scan-provider targets, and every
+> file already imported) and re-imports changes as a new version with a stored
+> diff — so you don't need to run `m8m watch` separately. `m8m watch` remains
+> available for standalone/foreground use.
 
 ### Easiest: auto-configure
 
@@ -227,7 +235,8 @@ It has two lists that control where m8m looks for vendor memory files:
 
 - **`providers`** — the agent harnesses `m8m scan` discovers. Each entry names
   a vendor and lists the files/directories that hold its memories.
-- **`watch_paths`** — the paths `m8m watch` monitors for changes in real time.
+- **`watch_paths`** — the paths the file watcher (inside the MCP server, or
+  `m8m watch`) monitors for changes in real time.
 
 ```json
 {
