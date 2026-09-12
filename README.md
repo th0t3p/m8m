@@ -82,7 +82,7 @@ m8m audit
 | Command | Description |
 | --- | --- |
 | `m8m init` | Initialize config + database |
-| `m8m status` | Overview: totals, flagged, security events |
+| `m8m status` | Overview of agent + file memories, flags, security events |
 | `m8m list [--platform <p>] [--status <s>] [--source-type <t>] [--flagged]` | List memories with filters |
 | `m8m show <id>` | Full detail + changelog history |
 | `m8m search <query> [--limit <n>]` | Keyword search |
@@ -97,6 +97,7 @@ m8m audit
 | `m8m files` | List imported memory files |
 | `m8m files show <id>` | Show a memory file tree |
 | `m8m files raw <id>` | Print a memory file's raw content |
+| `m8m files export <id> [--output <path>]` | Export a memory file's raw content (recovery) |
 | `m8m files diff <id>` | Show a memory file's change history |
 | `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
 | `m8m providers` | List scan providers (vendor memory paths) |
@@ -108,6 +109,7 @@ m8m audit
 | `m8m watch` | Start the file watcher standalone (foreground — optional; the MCP server already runs it) |
 | `m8m dashboard [--port <p>]` | Start the web dashboard (default 8808) |
 | `m8m mcp` | Start the MCP server (stdio) |
+| `m8m mcp add <client> [--data-dir <path>]` | Add m8m to an MCP client (codex \| claude \| cursor \| dsh) |
 | `m8m config` | Show config |
 | `m8m config set <key> <value>` | Update a config value |
 | `m8m config add-watch <path>` | Add a watch path |
@@ -270,6 +272,7 @@ It has two lists that control where m8m looks for vendor memory files:
   "watch_paths": [
     "~/.claude/memories",
     "./.claude/MEMORY.md",
+    "./.cursor/memory",
     "./AGENTS.md",
     "./MEMORY.md",
     "~/.codex/memories",
