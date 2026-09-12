@@ -9,14 +9,12 @@ import {
   getChangelog,
   getMemory,
   getSecurityEvents,
-  getSnapshot,
   getStats,
   resolveSecurityEvent,
   unflagMemory,
   updateMemoryStatus,
 } from '../core/db.js';
-import { diffMemories, diffSnapshots } from '../core/diff.js';
-import { buildHeatmap, buildRadar, buildRiver } from '../core/timeline.js';
+import { diffMemories } from '../core/diff.js';
 import { loadConfig } from '../core/config.js';
 import type { MemoryStatus, SourcePlatform } from '../core/types.js';
 
@@ -25,21 +23,6 @@ export function registerApi(): Router {
 
   router.get('/api/memories/stats', (_req, res) => {
     res.json(getStats());
-  });
-
-  router.get('/api/memories/timeline-data', (_req, res) => {
-    const memories = getAllMemories();
-    const snapshots = getAllSnapshots().map((s) => ({
-      id: s.id,
-      platform: s.platform,
-      taken_at: s.taken_at,
-    }));
-    res.json({
-      river: buildRiver(memories),
-      heatmap: buildHeatmap(memories, new Date()),
-      radar: buildRadar(memories),
-      snapshots,
-    });
   });
 
   router.get('/api/memories', (req, res) => {
@@ -93,18 +76,6 @@ export function registerApi(): Router {
 
   router.get('/api/diff', (req, res) => {
     const since = req.query.since as string | undefined;
-    const snapshot = req.query.snapshot as string | undefined;
-    const snapshot2 = req.query.snapshot2 as string | undefined;
-
-    if (snapshot && snapshot2) {
-      const d = diffSnapshots(snapshot, snapshot2);
-      return res.json({ snapshot, snapshot2, ...d });
-    }
-    if (snapshot) {
-      const snap = getSnapshot(snapshot);
-      const d = diffMemories(snap ? snap.snapshot_data : [], getAllMemories());
-      return res.json({ snapshot, snapshot_taken_at: snap?.taken_at ?? null, ...d });
-    }
     if (since) {
       const changelog = getChangelog({ since });
       return res.json({ since, changelog });
@@ -112,8 +83,8 @@ export function registerApi(): Router {
     const snapshots = getAllSnapshots();
     const latest = snapshots[0];
     const current = getAllMemories();
-    const d = diffMemories(latest ? latest.snapshot_data : [], current);
-    res.json({ snapshot: latest?.id ?? null, snapshot_taken_at: latest?.taken_at ?? null, ...d });
+    const diff = diffMemories(latest ? latest.snapshot_data : [], current);
+    res.json({ snapshot: latest?.id ?? null, snapshot_taken_at: latest?.taken_at ?? null, ...diff });
   });
 
   router.get('/api/events', (req, res) => {
