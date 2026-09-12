@@ -140,6 +140,16 @@ describe('db — documents', () => {
     expect(getDocumentChangelog(a.id)).toHaveLength(1);
   });
 
+  it('upsertDocument backfills provider on same-hash re-scan', () => {
+    const parsed = { title: 'T', nodes: [] };
+    const a = upsertDocument('/tmp/a2.md', 'same content', parsed, 'local_file', null, 0.5, 'cli');
+    expect(a.provider).toBeNull();
+    const b = upsertDocument('/tmp/a2.md', 'same content', parsed, 'local_file', 'Codex', 0.5, 'cli');
+    expect(b.id).toBe(a.id);
+    expect(b.version).toBe(1);
+    expect(b.provider).toBe('Codex');
+  });
+
   it('upsertDocument with different hash creates a new version', () => {
     const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'one', children: [] }] };
     const a = upsertDocument('/tmp/b.md', 'one', parsed, 'local_file', null, 0.5, 'cli');

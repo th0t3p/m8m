@@ -837,7 +837,14 @@ export function upsertDocument(
 
   if (existing) {
     if (existing.file_hash === fileHash) {
-      d.prepare(`UPDATE memory_documents SET last_seen = ? WHERE id = ?`).run(ts, existing.id);
+      // Content unchanged: refresh last_seen. Backfill provider if it was
+      // previously unknown (e.g. doc imported before provider tracking) but is
+      // now known from a scan target.
+      if (provider && existing.provider !== provider) {
+        d.prepare(`UPDATE memory_documents SET last_seen = ?, provider = ? WHERE id = ?`).run(ts, provider, existing.id);
+      } else {
+        d.prepare(`UPDATE memory_documents SET last_seen = ? WHERE id = ?`).run(ts, existing.id);
+      }
       return getDocument(existing.id)!;
     }
 
