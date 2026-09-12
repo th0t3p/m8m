@@ -40,10 +40,13 @@ export function formatStatBlock(stats: M8mStats, unresolvedEvents: number): stri
   lines.push('');
   lines.push(chalk.bold('  m8m — Memory Observatory'));
   lines.push(chalk.gray('  ─────────────────────────'));
-  lines.push(`  Total memories:     ${stats.total}`);
+  lines.push(`  Total memories:     ${stats.total}${stats.file ? `   (${stats.agent} agent + ${stats.file} file)` : ''}`);
   lines.push(`  Active:             ${stats.active}`);
   lines.push(`  Quarantined:        ${stats.quarantined}`);
   lines.push(`  Flagged:            ${stats.flagged}`);
+  if (stats.file) {
+    lines.push(`  File memories:      ${stats.file}   (${stats.file_nodes} nodes, ${stats.file_flagged} flagged)`);
+  }
   lines.push('');
   lines.push(chalk.bold('  By platform:'));
   for (const [k, v] of Object.entries(stats.by_platform).sort((a, b) => b[1] - a[1])) {

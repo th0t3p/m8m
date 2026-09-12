@@ -662,12 +662,32 @@ export function getStats(): M8mStats {
     return out;
   };
 
+  const agent = count(`SELECT COUNT(*) AS c FROM memory_entries`);
+  const file = count(`SELECT COUNT(*) AS c FROM memory_documents`);
+
+  const byPlatform = group(`SELECT source_platform AS k, COUNT(*) AS c FROM memory_entries GROUP BY source_platform`);
+  for (const [k, v] of Object.entries(
+    group(`SELECT source_platform AS k, COUNT(*) AS c FROM memory_documents GROUP BY source_platform`),
+  )) {
+    byPlatform[k] = (byPlatform[k] ?? 0) + v;
+  }
+
   return {
-    total: count(`SELECT COUNT(*) AS c FROM memory_entries`),
-    active: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'active'`),
-    quarantined: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'quarantined'`),
-    flagged: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE json_array_length(flags) > 0`),
-    by_platform: group(`SELECT source_platform AS k, COUNT(*) AS c FROM memory_entries GROUP BY source_platform`),
+    total: agent + file,
+    active:
+      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'active'`) +
+      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE status = 'active'`),
+    quarantined:
+      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'quarantined'`) +
+      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE status = 'quarantined'`),
+    flagged:
+      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE json_array_length(flags) > 0`) +
+      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE json_array_length(flags_summary) > 0`),
+    agent,
+    file,
+    file_nodes: count(`SELECT COUNT(*) AS c FROM memory_nodes`),
+    file_flagged: count(`SELECT COUNT(*) AS c FROM memory_nodes WHERE json_array_length(flags) > 0`),
+    by_platform: byPlatform,
     by_source_type: group(`SELECT source_type AS k, COUNT(*) AS c FROM memory_entries GROUP BY source_type`),
     by_category: group(`SELECT category AS k, COUNT(*) AS c FROM memory_entries GROUP BY category`),
   };

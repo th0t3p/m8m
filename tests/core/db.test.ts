@@ -112,6 +112,26 @@ describe('db — stats', () => {
     expect(s.by_platform.claude_code).toBe(1);
     expect(s.by_platform.local_file).toBe(1);
   });
+
+  it('counts file memories alongside agent memories', () => {
+    upsertMemory({ content: 'User likes tea', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    upsertDocument(
+      '/tmp/m.md',
+      'note',
+      { title: 'M', nodes: [{ node_type: 'paragraph', content: 'note', children: [] }] },
+      'local_file',
+      'Codex',
+      0.5,
+      'cli',
+    );
+    const s = getStats();
+    expect(s.agent).toBe(1);
+    expect(s.file).toBe(1);
+    expect(s.total).toBe(2);
+    expect(s.file_nodes).toBe(1);
+    expect(s.by_platform.claude_code).toBe(1);
+    expect(s.by_platform.local_file).toBe(1);
+  });
 });
 
 describe('db — documents', () => {
