@@ -4,7 +4,7 @@
 // A single freshness guard keeps multiple m8m processes (one per MCP client)
 // from stamping out redundant snapshots.
 
-import { createSnapshot, getAllMemories, getLatestSnapshot } from './db.js';
+import { createSnapshot, getCurrentMemories, getLatestSnapshot } from './db.js';
 
 const AUTO_PLATFORM = 'auto';
 
@@ -19,7 +19,7 @@ export function startAutoSnapshot(intervalMinutes: number): () => void {
       if (latest && Date.now() - new Date(latest.taken_at).getTime() < intervalMs) {
         return; // a recent snapshot already exists
       }
-      createSnapshot(AUTO_PLATFORM, getAllMemories());
+      createSnapshot(AUTO_PLATFORM, getCurrentMemories());
     } catch (err) {
       console.error('[m8m auto-snapshot] failed:', err);
     }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { diffMemories } from '../../src/core/diff.js';
 import {
   applyDocumentRollback,
   applySnapshotRollback,
@@ -10,6 +11,7 @@ import {
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getCurrentMemories,
   getDocumentByPath,
   getDocumentChangelog,
   getDocumentWithNodes,
@@ -274,6 +276,26 @@ describe('db — rollback', () => {
     expect(restored.content).toBe('one');
     const removed = getAllMemories().find((m) => m.content === 'two');
     expect(removed?.status).toBe('deleted');
+  });
+
+  it('leaves no drift behind after a rollback (soft-deleted rows are history)', () => {
+    const a = upsertMemory({ content: 'one', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    createSnapshot('test', getAllMemories());
+    const snap = getAllSnapshots('test')[0];
+
+    upsertMemory({ content: 'two', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    expect(diffMemories(snap.snapshot_data, getCurrentMemories()).added).toHaveLength(1);
+
+    applySnapshotRollback(snap.id, 'cli');
+
+    // 'two' is soft-deleted: still on record (the Memories tab shows it as
+    // Deleted) but it must not read back as drift against the snapshot.
+    expect(getAllMemories().find((m) => m.content === 'two')?.status).toBe('deleted');
+    const drift = diffMemories(snap.snapshot_data, getCurrentMemories());
+    expect(drift.added).toHaveLength(0);
+    expect(drift.modified).toHaveLength(0);
+    expect(drift.deleted).toHaveLength(0);
+    expect(getMemory(a.id)?.status).toBe('active');
   });
 
   it('previews and applies a document rollback to the previous version', () => {

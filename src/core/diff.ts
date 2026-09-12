@@ -1,6 +1,6 @@
 // Memory diff engine — compare sets of memory entries or snapshots.
 
-import { getAllMemories, getLatestSnapshot, getSnapshot } from './db.js';
+import { getCurrentMemories, getLatestSnapshot, getSnapshot } from './db.js';
 import type { MemoryDiff, MemoryEntry } from './types.js';
 
 /**
@@ -52,7 +52,7 @@ export function diffMemories(before: MemoryEntry[], after: MemoryEntry[]): Memor
 /** Diff the current database state against the latest snapshot for a platform. */
 export function diffSinceSnapshot(platform: string): MemoryDiff {
   const snap = getLatestSnapshot(platform);
-  const current = getAllMemories();
+  const current = getCurrentMemories();
   return diffMemories(snap ? snap.snapshot_data : [], current);
 }
 

@@ -300,6 +300,19 @@ export function getAllMemories(filters: MemoryFilters = {}): MemoryEntry[] {
 }
 
 /** Keyword search over active memories, ranked by trust then recency. */
+/**
+ * Memories that make up the current state of the store.
+ *
+ * Soft-deleted rows are history: they stay queryable and keep their "Deleted"
+ * status in the dashboard, but they must not count as *present* when the store
+ * is compared against a snapshot — otherwise a rollback (which soft-deletes the
+ * memories it removes) reports the entries it just removed as drift, and the
+ * Diff tab looks like nothing happened.
+ */
+export function getCurrentMemories(): MemoryEntry[] {
+  return getAllMemories().filter((m) => m.status !== 'deleted');
+}
+
 export function searchMemories(query: string, limit = 10): MemoryEntry[] {
   const d = requireDb();
   const rows = d
@@ -652,7 +665,7 @@ export function previewSnapshotRollback(snapshotId: string): RollbackPreview {
   const removed = currentDocs.filter((cd) => !targetByPath.has(cd.file_path));
 
   return {
-    entries: diffMemories(getAllMemories(), snapshot.snapshot_data),
+    entries: diffMemories(getCurrentMemories(), snapshot.snapshot_data),
     documents: { restored, removed },
   };
 }
@@ -661,7 +674,7 @@ export function previewSnapshotRollback(snapshotId: string): RollbackPreview {
 export function applySnapshotRollback(snapshotId: string, detectedBy: DetectionSource): RollbackPreview {
   const snapshot = getSnapshot(snapshotId);
   if (!snapshot) throw new Error(`Snapshot not found: ${snapshotId}`);
-  const current = getAllMemories();
+  const current = getCurrentMemories();
   const target = snapshot.snapshot_data;
   const targetById = new Map(target.map((e) => [e.id, e]));
 

@@ -11,6 +11,7 @@ import {
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getCurrentMemories,
   getDocument,
   getDocumentChangelog,
   getDocumentStats,
@@ -126,7 +127,8 @@ export function registerApi(): Router {
     }
     const snapshots = getAllSnapshots();
     const latest = snapshots[0];
-    const current = getAllMemories();
+    // Soft-deleted rows are history, not current state — see getCurrentMemories().
+    const current = getCurrentMemories();
     const diff = diffMemories(latest ? latest.snapshot_data : [], current);
     res.json({
       snapshot: latest?.id ?? null,
@@ -154,7 +156,8 @@ export function registerApi(): Router {
 
   router.post('/api/snapshot', (req, res) => {
     const platform = req.body?.platform ?? 'manual';
-    createSnapshot(platform, getAllMemories());
+    // Snapshots record the memory set as it stands — soft-deleted rows are history.
+    createSnapshot(platform, getCurrentMemories());
     res.json({ ok: true, platform });
   });
 

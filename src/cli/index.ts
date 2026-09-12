@@ -16,6 +16,7 @@ import {
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getCurrentMemories,
   getDocumentChangelog,
   getDocumentWithNodes,
   getMemory,
@@ -268,7 +269,7 @@ program
   .option('-f, --force', 'Skip the confirmation prompt')
   .action(async (opts: { force?: boolean }) => {
     ensureDb();
-    const count = getAllMemories().filter((m) => m.status !== 'deleted').length;
+    const count = getCurrentMemories().length;
     if (count === 0) {
       console.log('No active memories to clear.');
       return;
@@ -360,7 +361,7 @@ program
   .option('--platform <p>', 'Platform label (default manual)')
   .action((opts) => {
     ensureDb();
-    createSnapshot(opts.platform ?? 'manual', getAllMemories());
+    createSnapshot(opts.platform ?? 'manual', getCurrentMemories());
     console.log('Snapshot created.');
   });
 
@@ -407,7 +408,8 @@ program
       return;
     }
     const latest = getAllSnapshots()[0];
-    const diff = diffMemories(latest ? latest.snapshot_data : [], getAllMemories());
+    // Soft-deleted rows are history, not current state — see getCurrentMemories().
+    const diff = diffMemories(latest ? latest.snapshot_data : [], getCurrentMemories());
     console.log(formatDiff(diff));
   });
 
