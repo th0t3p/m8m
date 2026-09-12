@@ -143,6 +143,34 @@ export function formatDiff(diff: MemoryDiff): string {
   return lines.join('\n');
 }
 
+/** Preview of what a snapshot rollback will do (restore/revert/remove). */
+export function formatRollbackPreview(diff: MemoryDiff): string {
+  const lines: string[] = [];
+  lines.push('');
+  lines.push(chalk.bold('  Rollback preview'));
+  lines.push(chalk.gray('  ────────────────'));
+  for (const e of diff.added) {
+    lines.push(chalk.green(`  ↺ restore  [${e.id.slice(0, 8)}] "${truncate(e.content)}"`));
+  }
+  for (const m of diff.modified) {
+    lines.push(chalk.yellow(`  ↺ revert   [${m.after.id.slice(0, 8)}] "${truncate(m.after.content)}" → "${truncate(m.before.content)}"`));
+  }
+  for (const e of diff.deleted) {
+    lines.push(chalk.red(`  ✕ remove   [${e.id.slice(0, 8)}] "${truncate(e.content)}"`));
+  }
+  if (!diff.added.length && !diff.modified.length && !diff.deleted.length) {
+    lines.push(chalk.gray('  (no changes — the store already matches this snapshot)'));
+  } else {
+    const parts: string[] = [];
+    if (diff.added.length) parts.push(`restore ${diff.added.length}`);
+    if (diff.modified.length) parts.push(`revert ${diff.modified.length}`);
+    if (diff.deleted.length) parts.push(`remove ${diff.deleted.length}`);
+    lines.push('');
+    lines.push(chalk.bold(`  Will ${parts.join(', ')}`));
+  }
+  return lines.join('\n');
+}
+
 export function formatSecurityEvents(events: SecurityEvent[]): string {
   if (events.length === 0) return chalk.gray('  (no security events)');
   const lines: string[] = [];

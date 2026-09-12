@@ -2,6 +2,8 @@
 
 import { Router } from 'express';
 import {
+  applyDocumentRollback,
+  applySnapshotRollback,
   createSnapshot,
   flagMemory,
   getAllDocumentChanges,
@@ -17,6 +19,8 @@ import {
   getSecurityEvents,
   getStats,
   getTimeline,
+  previewDocumentRollback,
+  previewSnapshotRollback,
   resolveSecurityEvent,
   unflagMemory,
   updateMemoryStatus,
@@ -152,6 +156,28 @@ export function registerApi(): Router {
     const platform = req.body?.platform ?? 'manual';
     createSnapshot(platform, getAllMemories());
     res.json({ ok: true, platform });
+  });
+
+  router.get('/api/snapshots', (_req, res) => {
+    res.json(getAllSnapshots());
+  });
+
+  router.post('/api/snapshots/:id/rollback/preview', (req, res) => {
+    res.json(previewSnapshotRollback(req.params.id));
+  });
+
+  router.post('/api/snapshots/:id/rollback', (req, res) => {
+    const diff = applySnapshotRollback(req.params.id, 'dashboard');
+    res.json({ ok: true, ...diff });
+  });
+
+  router.post('/api/documents/:id/rollback/preview', (req, res) => {
+    res.json(previewDocumentRollback(req.params.id));
+  });
+
+  router.post('/api/documents/:id/rollback', (req, res) => {
+    const doc = applyDocumentRollback(req.params.id, 'dashboard');
+    res.json({ ok: true, id: doc.id, version: doc.version });
   });
 
   router.get('/api/config', (_req, res) => {

@@ -99,11 +99,13 @@ m8m audit
 | `m8m files raw <id>` | Print a memory file's raw content |
 | `m8m files export <id> [--output <path>]` | Export a memory file's raw content (recovery) |
 | `m8m files diff <id>` | Show a memory file's change history |
+| `m8m files rollback <id> [--yes]` | Roll a memory file back to its previous version |
 | `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
 | `m8m providers` | List scan providers (vendor memory paths) |
 | `m8m providers add <name> <path> [--platform <p>] [--dir] [--ext <e>] [--desc <d>]` | Add a vendor scan target |
 | `m8m providers rm <name>` | Remove a vendor |
 | `m8m snapshot [--platform <p>]` | Manual snapshot for diffing |
+| `m8m rollback <snapshot-id> [--yes]` | Restore memories to a snapshot (preview + confirm) |
 | `m8m diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
 | `m8m audit [--severity critical] [--resolved]` | List security events |
 | `m8m watch` | Start the file watcher standalone (foreground — optional; the MCP server already runs it) |
@@ -157,6 +159,30 @@ changelog. Statuses:
 Soft-delete keeps the content so it can be restored or audited. Purge
 physically removes the row and its history (earlier snapshots may still hold a
 copy).
+
+## Snapshots & rollback
+
+Snapshots are point-in-time dumps of your **agent memories** (not file
+memories — those keep their own per-file version history). They let you diff
+drift and roll back.
+
+- **Auto-snapshots** run inside the MCP server every
+  `auto_snapshot_interval_minutes` (default 60), so a recent baseline is always
+  available while a client is connected.
+- `m8m snapshot` takes one manually.
+- `m8m diff` compares the current store against the latest snapshot (or two
+  snapshots, or a time window).
+
+**Rollback always previews first, then asks to confirm:**
+
+```bash
+m8m rollback <snapshot-id>        # shows restore/revert/remove preview, then [y/N]
+m8m files rollback <id>           # shows a line diff, then restores the previous version
+```
+
+Rollback is traceable — it writes normal changelog/version entries, so you can
+roll forward again. Snapshot rollback re-adds deleted memories, reverts
+modified ones, and soft-deletes memories added after the snapshot.
 
 ## MCP server
 

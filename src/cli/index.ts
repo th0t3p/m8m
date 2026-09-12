@@ -7,6 +7,8 @@ import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import { configPath, initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
+  applyDocumentRollback,
+  applySnapshotRollback,
   clearAllMemories,
   createSnapshot,
   flagMemory,
@@ -20,6 +22,8 @@ import {
   getSecurityEvents,
   getStats,
   initDatabase,
+  previewDocumentRollback,
+  previewSnapshotRollback,
   purgeMemory,
   searchMemories,
   unflagMemory,
@@ -41,6 +45,7 @@ import {
   formatDiff,
   formatMemoryDetail,
   formatMemoryList,
+  formatRollbackPreview,
   formatSecurityEvents,
   formatStatBlock,
   truncate,
@@ -359,6 +364,29 @@ program
     console.log('Snapshot created.');
   });
 
+// --- Rollback -----------------------------------------------------------
+program
+  .command('rollback <snapshot-id>')
+  .description('Restore memories to a previous snapshot (preview + confirm)')
+  .option('--yes', 'Apply without prompting')
+  .action(async (snapshotId: string, opts: { yes?: boolean }) => {
+    ensureDb();
+    const preview = previewSnapshotRollback(snapshotId);
+    console.log(formatRollbackPreview(preview));
+    if (!preview.added.length && !preview.modified.length && !preview.deleted.length) {
+      return;
+    }
+    if (!opts.yes) {
+      const ok = await confirm(`\n  Apply this rollback? [y/N] `);
+      if (!ok) {
+        console.log('  Aborted.');
+        return;
+      }
+    }
+    applySnapshotRollback(snapshotId, 'cli');
+    console.log(`  Rolled back to snapshot ${snapshotId.slice(0, 8)}.`);
+  });
+
 // --- Diff ---------------------------------------------------------------
 program
   .command('diff')
@@ -529,6 +557,31 @@ filesCmd.command('diff <id>').description('Show memory file change history').act
     }
   }
 });
+
+filesCmd
+  .command('rollback <id>')
+  .description('Roll a memory file back to its previous version (preview + confirm)')
+  .option('--yes', 'Apply without prompting')
+  .action(async (id: string, opts: { yes?: boolean }) => {
+    ensureDb();
+    const preview = previewDocumentRollback(id);
+    console.log('');
+    console.log(`  Rollback preview — ${preview.file_name}`);
+    console.log('  ─────────────────────────────────');
+    const diff = diffLines(preview.before, preview.after);
+    const shown = diff.length > 80 ? diff.slice(0, 80) : diff;
+    for (const line of shown) console.log(`    ${line}`);
+    if (diff.length > 80) console.log(`    … ${diff.length - 80} more changed line(s) omitted`);
+    if (!opts.yes) {
+      const ok = await confirm(`\n  Restore the previous version of this file? [y/N] `);
+      if (!ok) {
+        console.log('  Aborted.');
+        return;
+      }
+    }
+    applyDocumentRollback(id, 'cli');
+    console.log(`  Rolled back ${preview.file_name} to its previous version.`);
+  });
 
 // --- Watch --------------------------------------------------------------
 program

@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  applyDocumentRollback,
+  applySnapshotRollback,
   buildNodeTree,
   clearAllMemories,
   createSecurityEvent,
   createSnapshot,
   deleteMemory,
   getAllMemories,
+  getAllSnapshots,
   getChangelog,
   getDocumentChangelog,
   getDocumentWithNodes,
@@ -16,6 +19,8 @@ import {
   getStats,
   getTimeline,
   initDatabase,
+  previewDocumentRollback,
+  previewSnapshotRollback,
   purgeMemory,
   resolveSecurityEvent,
   updateMemoryStatus,
@@ -243,5 +248,43 @@ describe('db — documents', () => {
     const tree = buildNodeTree(flat);
     expect(tree).toHaveLength(1);
     expect(tree[0].children).toHaveLength(1);
+  });
+});
+
+describe('db — rollback', () => {
+  it('previews and applies a snapshot rollback', () => {
+    const a = upsertMemory({ content: 'one', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    createSnapshot('test', getAllMemories());
+    const snap = getAllSnapshots('test')[0];
+
+    // Drift: modify the entry and add a new one.
+    upsertMemory({ id: a.id, content: 'one changed', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+    upsertMemory({ content: 'two', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
+
+    const preview = previewSnapshotRollback(snap.id);
+    expect(preview.modified).toHaveLength(1);
+    expect(preview.deleted).toHaveLength(1);
+
+    applySnapshotRollback(snap.id, 'cli');
+
+    const restored = getMemory(a.id)!;
+    expect(restored.content).toBe('one');
+    const removed = getAllMemories().find((m) => m.content === 'two');
+    expect(removed?.status).toBe('deleted');
+  });
+
+  it('previews and applies a document rollback to the previous version', () => {
+    const parsed1 = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'one', children: [] }] };
+    const doc = upsertDocument('/tmp/roll.md', 'one', parsed1, 'local_file', null, 0.5, 'cli');
+    const parsed2 = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'two', children: [] }] };
+    upsertDocument('/tmp/roll.md', 'two', parsed2, 'local_file', null, 0.5, 'cli');
+
+    const preview = previewDocumentRollback(doc.id);
+    expect(preview.before).toBe('two');
+    expect(preview.after).toBe('one');
+
+    const rolled = applyDocumentRollback(doc.id, 'cli');
+    expect(rolled.raw_content).toBe('one');
+    expect(rolled.version).toBe(3);
   });
 });

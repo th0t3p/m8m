@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig } from '../core/config.js';
 import { initDatabase } from '../core/db.js';
+import { startAutoSnapshot } from '../core/autosnapshot.js';
 import { VERSION } from '../version.js';
 import { startWatcher } from '../watcher/watcher.js';
 import { TOOLS } from './tools.js';
@@ -28,6 +29,9 @@ export async function startMcpServer(): Promise<void> {
     console.error('[m8m watcher] failed to start:', err);
   }
 
+  // Same for the periodic auto-snapshot (rollback baselines).
+  const closeAutoSnapshot = startAutoSnapshot(config.auto_snapshot_interval_minutes);
+
   const server = new McpServer({ name: 'm8m', version: VERSION });
   for (const tool of TOOLS) {
     server.registerTool(
@@ -49,13 +53,14 @@ export async function startMcpServer(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  // When the client disconnects (stdin closes), stop the watcher so the
-  // process exits cleanly instead of lingering on chokidar's open handles.
+  // When the client disconnects (stdin closes), stop the watcher + snapshot
+  // timer so the process exits cleanly instead of lingering on open handles.
   let shutdown = false;
   const onShutdown = (): void => {
     if (shutdown) return;
     shutdown = true;
     closeWatcher();
+    closeAutoSnapshot();
   };
   process.stdin.on('end', onShutdown);
   process.stdin.on('close', onShutdown);

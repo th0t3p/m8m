@@ -1,13 +1,15 @@
 // SQLite database initialization and typed CRUD operations.
 
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import Database from 'better-sqlite3';
 import { analyzeEntry } from './analyzer.js';
 import { ensureParentDir } from './config.js';
 import { hashContent, hashSnapshot } from './hasher.js';
 import { SCHEMA_STATEMENTS } from './schema.js';
-import { detectFileFormat } from '../watcher/parsers.js';
+import { detectFileFormat, parseDocumentTree } from '../watcher/parsers.js';
+import { diffMemories } from './diff.js';
 import type {
   ChangelogEntry,
   ChangelogFilters,
@@ -17,6 +19,7 @@ import type {
   EventSeverity,
   MemoryCategory,
   MemoryDocument,
+  MemoryDiff,
   MemoryEntry,
   MemoryFilters,
   MemoryFlag,
@@ -622,6 +625,82 @@ export function getAllSnapshots(platform?: string): Snapshot[] {
     ? d.prepare(`SELECT * FROM memory_snapshots WHERE platform = ? ORDER BY taken_at DESC`).all(platform)
     : d.prepare(`SELECT * FROM memory_snapshots ORDER BY taken_at DESC`).all();
   return (rows as any[]).map(rowToSnapshot);
+}
+
+/**
+ * Preview what rolling back to a snapshot would do. The returned diff is
+ * from the current state to the snapshot: `added` = will be restored,
+ * `deleted` = will be removed, `modified` = will be reverted.
+ */
+export function previewSnapshotRollback(snapshotId: string): MemoryDiff {
+  const snapshot = getSnapshot(snapshotId);
+  if (!snapshot) throw new Error(`Snapshot not found: ${snapshotId}`);
+  return diffMemories(getAllMemories(), snapshot.snapshot_data);
+}
+
+/** Restore the memory store to match a snapshot. Returns the applied diff. */
+export function applySnapshotRollback(snapshotId: string, detectedBy: DetectionSource): MemoryDiff {
+  const snapshot = getSnapshot(snapshotId);
+  if (!snapshot) throw new Error(`Snapshot not found: ${snapshotId}`);
+  const current = getAllMemories();
+  const target = snapshot.snapshot_data;
+  const targetById = new Map(target.map((e) => [e.id, e]));
+
+  // Restore snapshot entries (re-add deleted, revert modified content).
+  for (const e of target) {
+    const restored = upsertMemory(
+      {
+        id: e.id,
+        content: e.content,
+        source_type: e.source_type,
+        source_platform: e.source_platform,
+        source_conversation_id: e.source_conversation_id,
+        source_url: e.source_url,
+        source_detail: e.source_detail,
+        trust_level: e.trust_level,
+        tags: e.tags,
+      },
+      detectedBy,
+    );
+    if (restored.status !== e.status) updateMemoryStatus(e.id, e.status, detectedBy);
+  }
+
+  // Soft-delete entries that exist now but were not in the snapshot.
+  for (const e of current) {
+    if (!targetById.has(e.id)) deleteMemory(e.id, detectedBy);
+  }
+
+  return diffMemories(current, target);
+}
+
+/** Preview rolling a file memory back to its previous version. */
+export function previewDocumentRollback(documentId: string): {
+  file_name: string;
+  before: string;
+  after: string;
+} {
+  const doc = getDocument(documentId);
+  if (!doc) throw new Error(`Memory file not found: ${documentId}`);
+  const lastModified = getDocumentChangelog(documentId).find(
+    (c) => c.change_type === 'modified' && c.old_content !== undefined,
+  );
+  if (!lastModified) throw new Error('No previous version to roll back to');
+  return { file_name: doc.file_name, before: doc.raw_content, after: lastModified.old_content! };
+}
+
+/** Roll a file memory back to its previous version (writes the file + re-imports). */
+export function applyDocumentRollback(documentId: string, detectedBy: DetectionSource): MemoryDocument {
+  const doc = getDocument(documentId);
+  if (!doc) throw new Error(`Memory file not found: ${documentId}`);
+  const lastModified = getDocumentChangelog(documentId).find(
+    (c) => c.change_type === 'modified' && c.old_content !== undefined,
+  );
+  if (!lastModified) throw new Error('No previous version to roll back to');
+  const previous = lastModified.old_content!;
+  // The file is the source of truth — write the old content back, then re-import.
+  writeFileSync(doc.file_path, previous, 'utf8');
+  const parsed = parseDocumentTree(previous, doc.file_path);
+  return upsertDocument(doc.file_path, previous, parsed, doc.source_platform, doc.provider, doc.trust_level, detectedBy);
 }
 
 // ---------------------------------------------------------------------------
