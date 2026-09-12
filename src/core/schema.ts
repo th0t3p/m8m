@@ -54,6 +54,7 @@ export const SCHEMA_STATEMENTS: string[] = [
     id TEXT PRIMARY KEY,
     platform TEXT NOT NULL,
     snapshot_data TEXT NOT NULL,
+    documents_data TEXT,
     entry_count INTEGER NOT NULL DEFAULT 0,
     taken_at DATETIME NOT NULL DEFAULT (datetime('now')),
     hash TEXT NOT NULL

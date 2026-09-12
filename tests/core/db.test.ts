@@ -10,6 +10,7 @@ import {
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getDocumentByPath,
   getDocumentChangelog,
   getDocumentWithNodes,
   getLatestSnapshot,
@@ -262,8 +263,10 @@ describe('db — rollback', () => {
     upsertMemory({ content: 'two', source_type: 'conversation', source_platform: 'claude_code' }, 'cli');
 
     const preview = previewSnapshotRollback(snap.id);
-    expect(preview.modified).toHaveLength(1);
-    expect(preview.deleted).toHaveLength(1);
+    expect(preview.entries.modified).toHaveLength(1);
+    expect(preview.entries.deleted).toHaveLength(1);
+    expect(preview.documents.restored).toHaveLength(0);
+    expect(preview.documents.removed).toHaveLength(0);
 
     applySnapshotRollback(snap.id, 'cli');
 
@@ -286,5 +289,26 @@ describe('db — rollback', () => {
     const rolled = applyDocumentRollback(doc.id, 'cli');
     expect(rolled.raw_content).toBe('one');
     expect(rolled.version).toBe(3);
+  });
+
+  it('snapshot rollback restores file memories too', () => {
+    const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'one', children: [] }] };
+    upsertDocument('/tmp/snapdoc.md', 'one', parsed, 'local_file', null, 0.5, 'cli');
+    createSnapshot('test', getAllMemories());
+    const snap = getAllSnapshots('test')[0];
+
+    // Modify one file memory and add a new one.
+    const parsed2 = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'two', children: [] }] };
+    upsertDocument('/tmp/snapdoc.md', 'two', parsed2, 'local_file', null, 0.5, 'cli');
+    upsertDocument('/tmp/newdoc.md', 'new', parsed, 'local_file', null, 0.5, 'cli');
+
+    const preview = previewSnapshotRollback(snap.id);
+    expect(preview.documents.restored).toHaveLength(1);
+    expect(preview.documents.removed).toHaveLength(1);
+
+    applySnapshotRollback(snap.id, 'cli');
+
+    expect(getDocumentByPath('/tmp/snapdoc.md')?.raw_content).toBe('one');
+    expect(getDocumentByPath('/tmp/newdoc.md')).toBeNull();
   });
 });

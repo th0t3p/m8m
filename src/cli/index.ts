@@ -373,7 +373,9 @@ program
     ensureDb();
     const preview = previewSnapshotRollback(snapshotId);
     console.log(formatRollbackPreview(preview));
-    if (!preview.added.length && !preview.modified.length && !preview.deleted.length) {
+    const entriesChanged = preview.entries.added.length + preview.entries.modified.length + preview.entries.deleted.length;
+    const docsChanged = preview.documents.restored.length + preview.documents.removed.length;
+    if (!entriesChanged && !docsChanged) {
       return;
     }
     if (!opts.yes) {

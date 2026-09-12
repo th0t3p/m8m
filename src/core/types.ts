@@ -84,9 +84,20 @@ export interface Snapshot {
   id: string;
   platform: string;
   snapshot_data: MemoryEntry[];
+  documents_data?: MemoryDocument[];  // file memories captured since document snapshots were added
   entry_count: number;
   taken_at: string;
   hash: string;
+}
+
+export interface DocumentRollbackDiff {
+  restored: MemoryDocument[];  // will be written back + re-imported
+  removed: MemoryDocument[];   // will be purged (added after the snapshot)
+}
+
+export interface RollbackPreview {
+  entries: MemoryDiff;
+  documents: DocumentRollbackDiff;
 }
 
 export interface MemoryDiff {

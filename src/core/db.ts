@@ -16,6 +16,7 @@ import type {
   ChangeType,
   DetectionSource,
   DocumentChangelog,
+  DocumentRollbackDiff,
   EventSeverity,
   MemoryCategory,
   MemoryDocument,
@@ -29,6 +30,7 @@ import type {
   NodeType,
   ParsedDocument,
   ParsedNode,
+  RollbackPreview,
   SecurityEvent,
   SecurityEventFilters,
   Snapshot,
@@ -151,6 +153,7 @@ function rowToSnapshot(r: any): Snapshot {
     id: r.id,
     platform: r.platform,
     snapshot_data: parseJsonArray<MemoryEntry>(r.snapshot_data, []),
+    documents_data: r.documents_data ? parseJsonArray<MemoryDocument>(r.documents_data, []) : undefined,
     entry_count: r.entry_count,
     taken_at: r.taken_at,
     hash: r.hash,
@@ -186,6 +189,7 @@ function migrateSchema(instance: Database.Database): void {
   ensureColumn('security_events', 'document_id', `ALTER TABLE security_events ADD COLUMN document_id TEXT`);
   ensureColumn('document_changelog', 'old_content', `ALTER TABLE document_changelog ADD COLUMN old_content TEXT`);
   ensureColumn('document_changelog', 'new_content', `ALTER TABLE document_changelog ADD COLUMN new_content TEXT`);
+  ensureColumn('memory_snapshots', 'documents_data', `ALTER TABLE memory_snapshots ADD COLUMN documents_data TEXT`);
 }
 
 export function getDb(): Database.Database {
@@ -601,10 +605,11 @@ export function getChangelog(filters: ChangelogFilters = {}): ChangelogEntry[] {
 export function createSnapshot(platform: string, entries: MemoryEntry[]): void {
   const d = requireDb();
   const data = JSON.stringify(entries);
+  const docsData = JSON.stringify(getAllDocuments());
   d.prepare(
-    `INSERT INTO memory_snapshots (id, platform, snapshot_data, entry_count, taken_at, hash)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(randomUUID(), platform, data, entries.length, nowIso(), hashSnapshot(data));
+    `INSERT INTO memory_snapshots (id, platform, snapshot_data, documents_data, entry_count, taken_at, hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(randomUUID(), platform, data, docsData, entries.length, nowIso(), hashSnapshot(data + docsData));
 }
 
 export function getLatestSnapshot(platform: string): Snapshot | null {
@@ -628,18 +633,32 @@ export function getAllSnapshots(platform?: string): Snapshot[] {
 }
 
 /**
- * Preview what rolling back to a snapshot would do. The returned diff is
- * from the current state to the snapshot: `added` = will be restored,
- * `deleted` = will be removed, `modified` = will be reverted.
+ * Preview what rolling back to a snapshot would do. `entries` is the
+ * agent-memory diff (added = restore, deleted = remove, modified = revert);
+ * `documents` is the file-memory diff (restored / removed).
  */
-export function previewSnapshotRollback(snapshotId: string): MemoryDiff {
+export function previewSnapshotRollback(snapshotId: string): RollbackPreview {
   const snapshot = getSnapshot(snapshotId);
   if (!snapshot) throw new Error(`Snapshot not found: ${snapshotId}`);
-  return diffMemories(getAllMemories(), snapshot.snapshot_data);
+  const currentDocs = getAllDocuments();
+  const targetDocs = snapshot.documents_data ?? [];
+  const currentByPath = new Map(currentDocs.map((d) => [d.file_path, d]));
+  const targetByPath = new Map(targetDocs.map((d) => [d.file_path, d]));
+
+  const restored = targetDocs.filter((td) => {
+    const cur = currentByPath.get(td.file_path);
+    return !cur || cur.file_hash !== td.file_hash;
+  });
+  const removed = currentDocs.filter((cd) => !targetByPath.has(cd.file_path));
+
+  return {
+    entries: diffMemories(getAllMemories(), snapshot.snapshot_data),
+    documents: { restored, removed },
+  };
 }
 
-/** Restore the memory store to match a snapshot. Returns the applied diff. */
-export function applySnapshotRollback(snapshotId: string, detectedBy: DetectionSource): MemoryDiff {
+/** Restore the memory store (agent + file memories) to match a snapshot. */
+export function applySnapshotRollback(snapshotId: string, detectedBy: DetectionSource): RollbackPreview {
   const snapshot = getSnapshot(snapshotId);
   if (!snapshot) throw new Error(`Snapshot not found: ${snapshotId}`);
   const current = getAllMemories();
@@ -670,7 +689,47 @@ export function applySnapshotRollback(snapshotId: string, detectedBy: DetectionS
     if (!targetById.has(e.id)) deleteMemory(e.id, detectedBy);
   }
 
-  return diffMemories(current, target);
+  // Restore file memories: write changed/missing docs back + re-import.
+  const currentDocs = getAllDocuments();
+  const targetDocs = snapshot.documents_data ?? [];
+  const currentByPath = new Map(currentDocs.map((d) => [d.file_path, d]));
+  const targetByPath = new Map(targetDocs.map((d) => [d.file_path, d]));
+
+  const restored: MemoryDocument[] = [];
+  for (const td of targetDocs) {
+    const cur = currentByPath.get(td.file_path);
+    if (!cur || cur.file_hash !== td.file_hash) {
+      writeFileSync(td.file_path, td.raw_content, 'utf8');
+      const parsed = parseDocumentTree(td.raw_content, td.file_path);
+      restored.push(upsertDocument(td.file_path, td.raw_content, parsed, td.source_platform, td.provider, td.trust_level, detectedBy));
+    }
+  }
+
+  // Purge file memories added after the snapshot.
+  const removed: MemoryDocument[] = [];
+  for (const cd of currentDocs) {
+    if (!targetByPath.has(cd.file_path)) {
+      purgeDocument(cd.id);
+      removed.push(cd);
+    }
+  }
+
+  return {
+    entries: diffMemories(current, target),
+    documents: { restored, removed },
+  };
+}
+
+/** Permanently remove a document and its nodes/changelog/security events. */
+export function purgeDocument(documentId: string): boolean {
+  const d = requireDb();
+  const existing = getDocument(documentId);
+  if (!existing) return false;
+  d.prepare(`DELETE FROM memory_nodes WHERE document_id = ?`).run(documentId);
+  d.prepare(`DELETE FROM document_changelog WHERE document_id = ?`).run(documentId);
+  d.prepare(`DELETE FROM security_events WHERE document_id = ?`).run(documentId);
+  d.prepare(`DELETE FROM memory_documents WHERE id = ?`).run(documentId);
+  return true;
 }
 
 /** Preview rolling a file memory back to its previous version. */

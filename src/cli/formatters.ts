@@ -7,6 +7,7 @@ import type {
   MemoryDiff,
   MemoryEntry,
   M8mStats,
+  RollbackPreview,
   SecurityEvent,
 } from '../core/types.js';
 
@@ -144,11 +145,15 @@ export function formatDiff(diff: MemoryDiff): string {
 }
 
 /** Preview of what a snapshot rollback will do (restore/revert/remove). */
-export function formatRollbackPreview(diff: MemoryDiff): string {
+export function formatRollbackPreview(preview: RollbackPreview): string {
+  const diff = preview.entries;
+  const docs = preview.documents;
   const lines: string[] = [];
   lines.push('');
   lines.push(chalk.bold('  Rollback preview'));
   lines.push(chalk.gray('  ────────────────'));
+
+  lines.push(chalk.bold('  Agent memories'));
   for (const e of diff.added) {
     lines.push(chalk.green(`  ↺ restore  [${e.id.slice(0, 8)}] "${truncate(e.content)}"`));
   }
@@ -159,15 +164,24 @@ export function formatRollbackPreview(diff: MemoryDiff): string {
     lines.push(chalk.red(`  ✕ remove   [${e.id.slice(0, 8)}] "${truncate(e.content)}"`));
   }
   if (!diff.added.length && !diff.modified.length && !diff.deleted.length) {
-    lines.push(chalk.gray('  (no changes — the store already matches this snapshot)'));
-  } else {
-    const parts: string[] = [];
-    if (diff.added.length) parts.push(`restore ${diff.added.length}`);
-    if (diff.modified.length) parts.push(`revert ${diff.modified.length}`);
-    if (diff.deleted.length) parts.push(`remove ${diff.deleted.length}`);
-    lines.push('');
-    lines.push(chalk.bold(`  Will ${parts.join(', ')}`));
+    lines.push(chalk.gray('  (no agent-memory changes)'));
   }
+
+  lines.push('');
+  lines.push(chalk.bold('  File memories'));
+  for (const d of docs.restored) {
+    lines.push(chalk.green(`  ↺ restore  ${d.file_name}  (${d.file_path})`));
+  }
+  for (const d of docs.removed) {
+    lines.push(chalk.red(`  ✕ remove   ${d.file_name}  (${d.file_path})`));
+  }
+  if (!docs.restored.length && !docs.removed.length) {
+    lines.push(chalk.gray('  (no file-memory changes)'));
+  }
+
+  const total = diff.added.length + diff.modified.length + diff.deleted.length + docs.restored.length + docs.removed.length;
+  lines.push('');
+  lines.push(chalk.bold(`  Will apply ${total} change(s)`));
   return lines.join('\n');
 }
 

@@ -162,9 +162,9 @@ copy).
 
 ## Snapshots & rollback
 
-Snapshots are point-in-time dumps of your **agent memories** (not file
-memories — those keep their own per-file version history). They let you diff
-drift and roll back.
+Snapshots are point-in-time dumps of **both kinds of memory** — agent memories
+and file memories — so you can diff drift and roll back the whole store
+atomically.
 
 - **Auto-snapshots** run inside the MCP server every
   `auto_snapshot_interval_minutes` (default 60), so a recent baseline is always
@@ -181,8 +181,10 @@ m8m files rollback <id>           # shows a line diff, then restores the previou
 ```
 
 Rollback is traceable — it writes normal changelog/version entries, so you can
-roll forward again. Snapshot rollback re-adds deleted memories, reverts
-modified ones, and soft-deletes memories added after the snapshot.
+roll forward again. Snapshot rollback re-adds deleted agent memories, reverts
+modified ones, soft-deletes memories added after the snapshot, restores file
+memories to their snapshot content, and purges file memories added since.
+`m8m files rollback <id>` rolls a single file back one version instead.
 
 ## MCP server
 
