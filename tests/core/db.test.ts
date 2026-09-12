@@ -16,6 +16,7 @@ import {
   getStats,
   getTimeline,
   initDatabase,
+  purgeMemory,
   resolveSecurityEvent,
   updateMemoryStatus,
   upsertDocument,
@@ -63,6 +64,16 @@ describe('db — delete and status', () => {
     deleteMemory(e.id, 'cli');
     expect(getMemory(e.id)?.status).toBe('deleted');
     expect(getChangelog().some((c) => c.change_type === 'deleted')).toBe(true);
+  });
+
+  it('purges a memory permanently (row + history removed)', () => {
+    const e = upsertMemory({ content: 'API key is sk_live_abc', source_type: 'document', source_platform: 'local_file' }, 'cli');
+    expect(getSecurityEvents().length).toBeGreaterThan(0);
+    const removed = purgeMemory(e.id);
+    expect(removed).toBe(true);
+    expect(getMemory(e.id)).toBeNull();
+    expect(getChangelog({ memory_id: e.id })).toHaveLength(0);
+    expect(getSecurityEvents().length).toBe(0);
   });
 
   it('changes status with a changelog record', () => {

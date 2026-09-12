@@ -1,6 +1,7 @@
 // MCP tool call handlers.
 
 import {
+  deleteMemory,
   flagMemory,
   getChangelog,
   getMemory,
@@ -87,4 +88,10 @@ export function handleStatus(): unknown {
 export function handleFlag(params: { memory_id: string; reason: string }): unknown {
   const entry = flagMemory(params.memory_id, params.reason, 'mcp_live');
   return { id: entry.id, flags: entry.flags.map((f) => f.type), flagged: true };
+}
+
+/** Soft-delete a memory (reversible — row and history are kept). */
+export function handleDelete(params: { memory_id: string }): unknown {
+  deleteMemory(params.memory_id, 'mcp_live');
+  return { id: params.memory_id, deleted: true, status: 'deleted' };
 }

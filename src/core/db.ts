@@ -162,6 +162,9 @@ export function initDatabase(dbPath: string): Database.Database {
   ensureParentDir(dbPath);
   const instance = new Database(dbPath);
   instance.pragma('journal_mode = WAL');
+  // Multiple m8m processes (one per MCP client) share the same SQLite file;
+  // wait for a busy writer instead of failing immediately with SQLITE_BUSY.
+  instance.pragma('busy_timeout = 5000');
   instance.exec(SCHEMA_STATEMENTS.join(';\n'));
   migrateSchema(instance);
   db = instance;
@@ -485,6 +488,21 @@ export function clearAllMemories(detectedBy: DetectionSource): number {
     deleteMemory(m.id, detectedBy);
   }
   return memories.length;
+}
+
+/**
+ * Permanently remove a memory: deletes the row plus its changelog and
+ * security events. Irreversible — snapshots taken earlier may still contain
+ * a copy. Returns true if a row was removed.
+ */
+export function purgeMemory(id: string): boolean {
+  const d = requireDb();
+  const existing = getMemory(id);
+  if (!existing) return false;
+  d.prepare(`DELETE FROM memory_changelog WHERE memory_id = ?`).run(id);
+  d.prepare(`DELETE FROM security_events WHERE memory_id = ?`).run(id);
+  d.prepare(`DELETE FROM memory_entries WHERE id = ?`).run(id);
+  return true;
 }
 
 export function updateMemoryStatus(

@@ -91,6 +91,7 @@ m8m audit
 | `m8m quarantine <id>` | Quarantine a suspicious memory |
 | `m8m restore <id>` | Restore from quarantine |
 | `m8m dismiss <id>` | Clear flags + dismiss |
+| `m8m purge <id> [--force]` | Permanently delete a memory (removes row + history) |
 | `m8m clear [-f]` | Clear all stored memories (soft-delete) |
 | `m8m import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
 | `m8m files` | List imported memory files |
@@ -131,10 +132,28 @@ $ m8m status
   Security events:      3 unresolved
 ```
 
+## Memory lifecycle
+
+m8m never silently overwrites history — every change is appended to a
+changelog. Statuses:
+
+| State | How | Reversible? | What's kept |
+| --- | --- | --- | --- |
+| **active** | default | — | row + full changelog |
+| **quarantined** | `m8m quarantine <id>` (or dashboard) | yes — `m8m restore <id>` | row + full changelog |
+| **dismissed** | `m8m dismiss <id>` | yes | row, flags cleared |
+| **deleted** (soft) | `m8m_delete` MCP tool / `m8m clear` | yes (status only) | row + content + changelog |
+| **purged** (hard) | `m8m purge <id> --force` | **no** | removed: row, changelog, security events |
+
+Soft-delete keeps the content so it can be restored or audited. Purge
+physically removes the row and its history (earlier snapshots may still hold a
+copy).
+
 ## MCP server
 
-m8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`, and
-`m8m_flag` over stdio.
+m8m exposes `m8m_store`, `m8m_search`, `m8m_recent`, `m8m_status`,
+`m8m_flag`, and `m8m_delete` over stdio. (`m8m_delete` is a reversible
+soft-delete; hard deletion is `m8m purge` in the CLI.)
 
 > **The MCP server also runs the file watcher.** While any client is connected,
 > it watches your memory files (`watch_paths`, scan-provider targets, and every

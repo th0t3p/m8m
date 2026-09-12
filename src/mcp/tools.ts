@@ -1,7 +1,7 @@
 // MCP tool definitions (zod input schemas + metadata).
 
 import { z } from 'zod';
-import { handleFlag, handleRecent, handleSearch, handleStatus, handleStore } from './handlers.js';
+import { handleDelete, handleFlag, handleRecent, handleSearch, handleStatus, handleStore } from './handlers.js';
 
 export interface McpToolDef {
   name: string;
@@ -56,5 +56,14 @@ export const TOOLS: McpToolDef[] = [
       reason: z.string(),
     }),
     handler: (args) => handleFlag(args),
+  },
+  {
+    name: 'm8m_delete',
+    description:
+      'Soft-delete a memory by id. Reversible — the row and its history are retained with status "deleted".',
+    schema: z.object({
+      memory_id: z.string(),
+    }),
+    handler: (args) => handleDelete(args),
   },
 ];

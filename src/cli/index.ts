@@ -20,6 +20,7 @@ import {
   getSecurityEvents,
   getStats,
   initDatabase,
+  purgeMemory,
   searchMemories,
   unflagMemory,
   updateMemoryStatus,
@@ -230,6 +231,29 @@ program
     unflagMemory(id, 'cli');
     updateMemoryStatus(id, 'dismissed', 'cli');
     console.log(`Dismissed ${id}`);
+  });
+
+// --- Purge --------------------------------------------------------------
+program
+  .command('purge <id>')
+  .description('Permanently delete a memory (irreversible — removes row + history)')
+  .option('--force', 'Skip the confirmation prompt')
+  .action(async (id, opts: { force?: boolean }) => {
+    ensureDb();
+    const entry = getMemory(id);
+    if (!entry) {
+      console.error(`Memory not found: ${id}`);
+      process.exit(1);
+    }
+    if (!opts.force) {
+      const ok = await confirm(`Permanently delete "${truncate(entry.content, 60)}"? This cannot be undone. [y/N] `);
+      if (!ok) {
+        console.log('Aborted.');
+        return;
+      }
+    }
+    purgeMemory(id);
+    console.log(`Purged ${id}`);
   });
 
 // --- Clear --------------------------------------------------------------
