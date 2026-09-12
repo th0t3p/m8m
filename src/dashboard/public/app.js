@@ -84,7 +84,8 @@ async function renderMemories() {
     tr.appendChild(el('td', {}, el('div', { class: 'content', text: m.content }), el('div', { class: 'meta', text: m.id.slice(0, 8) })));
     tr.appendChild(el('td', {}, badge(m.source_platform, 'platform')));
     tr.appendChild(el('td', {}, badge(m.trust_level.toFixed(1), 'trust')));
-    tr.appendChild(el('td', {}, m.flags.map((f) => badge(f.type.replace(/^contains_/, ''), 'flag')).join(' ') || ''));
+    const flagBadges = m.flags.map((f) => badge(f.type.replace(/^contains_/, ''), 'flag'));
+    tr.appendChild(el('td', {}, ...(flagBadges.length ? flagBadges : ['—'])));
     tr.appendChild(el('td', {}, badge(m.status, m.status === 'quarantined' ? 'sev-critical' : m.status === 'active' ? 'sev-info' : '')));
     const actions = el('td', {});
     if (m.status === 'quarantined') {
