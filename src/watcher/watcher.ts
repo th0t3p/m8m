@@ -110,8 +110,13 @@ export async function startWatcher(config: M8mConfig): Promise<() => void> {
     const isDir = statSync(p).isDirectory();
     upsertWatchTarget(p, isDir ? 'directory' : 'file', detectFileFormat(p), inferPlatform(p));
     if (isDir) continue; // chokidar recurses into directories; no file snapshot needed
-    // Initial snapshot of the file hash.
+    // Startup sync: re-import so edits made while the watcher was offline are
+    // picked up. upsertDocument dedups by content hash, so unchanged files are
+    // a no-op (just refresh last_seen).
     try {
+      if (detectFileFormat(p) !== 'sqlite' && !isConfigFile(p)) {
+        importFileAsDocument(p, null, inferPlatform(p) as SourcePlatform, 'file_watcher');
+      }
       const content = readFileSync(p, 'utf8');
       updateWatchTarget(p, hashContent(content, inferPlatform(p)));
     } catch {
