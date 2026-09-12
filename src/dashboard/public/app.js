@@ -168,6 +168,12 @@ async function api(path, options) {
   return res.json();
 }
 
+async function apiText(path) {
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}`);
+  return res.text();
+}
+
 async function load(key, path) {
   if (!cache.has(key)) cache.set(key, await api(path));
   return cache.get(key);
@@ -690,7 +696,7 @@ async function toggleDocTree(id, body) {
 async function toggleDocRaw(id, body) {
   body.innerHTML = '';
   try {
-    const raw = await api(`/api/documents/${id}/raw`);
+    const raw = await apiText(`/api/documents/${id}/raw`);
     body.appendChild(el('pre', { class: 'doc-raw', text: raw }));
   } catch (err) {
     body.appendChild(el('div', { class: 'meta', text: `Could not load raw: ${err.message}` }));
