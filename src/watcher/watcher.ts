@@ -2,7 +2,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import chokidar from 'chokidar';
 import { getDb } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
@@ -36,6 +36,12 @@ function inferPlatform(path: string): string {
   return 'local_file';
 }
 
+/** Config files (config.json, settings.json, config.toml, *.conf.yml) aren't memories. */
+function isConfigFile(path: string): boolean {
+  const base = basename(path).toLowerCase();
+  return /(^|[_.-])(config|settings)([_.-]|$)/.test(base) || /\.conf([_.-]|$)/.test(base);
+}
+
 function upsertWatchTarget(path: string, targetType: 'file' | 'directory', format: string, platform: string): void {
   const d = getDb();
   const existing = d.prepare(`SELECT id FROM watch_targets WHERE path = ?`).get(path);
@@ -52,9 +58,9 @@ function updateWatchTarget(path: string, hash: string): void {
 }
 
 function handleFileChange(path: string, platform: string): void {
-  // Skip binary plugin state (e.g. SQLite DBs inside ~/.hindsight) and other
-  // non-importable files so directory watches only import memory files.
-  if (detectFileFormat(path) === 'sqlite') return;
+  // Skip binary plugin state (SQLite DBs) and config files — only memory files
+  // (markdown/json/txt/rules files) should be imported on change.
+  if (detectFileFormat(path) === 'sqlite' || isConfigFile(path)) return;
   let content: string;
   try {
     content = readFileSync(path, 'utf8');
@@ -79,6 +85,14 @@ export async function startWatcher(config: M8mConfig): Promise<void> {
   const paths = new Set<string>();
   for (const p of [...DEFAULT_WATCH_PATHS, ...HOME_WATCH_PATHS, ...config.watch_paths]) {
     paths.add(resolve(expandHome(p)));
+  }
+  // Watch every scan-provider target too, so `m8m watch` and `m8m scan` agree
+  // on which files count as memory (this covers single files like
+  // ~/.codex/AGENTS.md, not just the directories above).
+  for (const provider of config.providers) {
+    for (const target of provider.targets) {
+      paths.add(resolve(expandHome(target.path)));
+    }
   }
 
   const existingPaths = [...paths].filter((p) => existsSync(p));
