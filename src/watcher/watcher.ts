@@ -1,7 +1,7 @@
 // File system watcher for local memory files.
 
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import chokidar from 'chokidar';
 import { getDb } from '../core/db.js';
@@ -20,7 +20,13 @@ const DEFAULT_WATCH_PATHS = [
   './.cursor/rules',
 ];
 
-const HOME_WATCH_PATHS = ['~/.claude/memories', '~/.claude/CLAUDE.md'];
+const HOME_WATCH_PATHS = [
+  '~/.claude/memories',
+  '~/.claude/CLAUDE.md',
+  '~/.codex/memories', // Codex native
+  '~/.hindsight', // Hindsight state
+  '~/.basic-memory', // Basic Memory
+];
 
 function inferPlatform(path: string): string {
   const p = path.toLowerCase();
@@ -46,6 +52,9 @@ function updateWatchTarget(path: string, hash: string): void {
 }
 
 function handleFileChange(path: string, platform: string): void {
+  // Skip binary plugin state (e.g. SQLite DBs inside ~/.hindsight) and other
+  // non-importable files so directory watches only import memory files.
+  if (detectFileFormat(path) === 'sqlite') return;
   let content: string;
   try {
     content = readFileSync(path, 'utf8');
@@ -79,7 +88,9 @@ export async function startWatcher(config: M8mConfig): Promise<void> {
   }
 
   for (const p of existingPaths) {
-    upsertWatchTarget(p, 'file', detectFileFormat(p), inferPlatform(p));
+    const isDir = statSync(p).isDirectory();
+    upsertWatchTarget(p, isDir ? 'directory' : 'file', detectFileFormat(p), inferPlatform(p));
+    if (isDir) continue; // chokidar recurses into directories; no file snapshot needed
     // Initial snapshot of the file hash.
     try {
       const content = readFileSync(p, 'utf8');
