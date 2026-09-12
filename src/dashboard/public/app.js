@@ -1009,9 +1009,126 @@ function fileDiffRow(change) {
   return row;
 }
 
+/* ------------------------------------------------------ snapshot rollback */
+
+function snapshotRow(snapshot) {
+  return el('div', { class: 'snap-row' },
+    el('span', { class: 'id', text: snapshot.id.slice(0, 8), title: snapshot.id }),
+    badge(snapshot.platform || 'manual'),
+    el('span', { class: 'meta', text: `${snapshot.entry_count} ${snapshot.entry_count === 1 ? 'memory' : 'memories'}` }),
+    el('span', { class: 'meta', text: timeAgo(snapshot.taken_at), title: new Date(snapshot.taken_at).toLocaleString() }),
+    el('div', { class: 'row-actions' },
+      el('button', {
+        class: 'btn danger',
+        type: 'button',
+        onclick: (event) => openSnapshotRollback(snapshot, event.currentTarget),
+      }, 'Rollback…'),
+    ),
+  );
+}
+
+// Preview first, confirm second: rolling back rewrites the agent memory store,
+// so the destructive call never happens straight off a single click.
+async function openSnapshotRollback(snapshot, button) {
+  const row = button.closest('.snap-row');
+  const open = row && row.nextElementSibling;
+  if (open && open.classList.contains('rollback-panel')) { open.remove(); return; }
+  for (const stale of document.querySelectorAll('.rollback-panel')) stale.remove();
+
+  const panel = el('div', { class: 'rollback-panel' });
+  panel.appendChild(el('div', { class: 'meta', text: 'Building preview…' }));
+  row.after(panel);
+  try {
+    const diff = await api(`/api/snapshots/${snapshot.id}/rollback/preview`, { method: 'POST' });
+    panel.innerHTML = '';
+    renderSnapshotRollback(panel, snapshot, diff);
+  } catch (err) {
+    panel.innerHTML = '';
+    panel.appendChild(el('div', { class: 'rollback-note', text: `Could not build the preview — ${err.message}` }));
+  }
+}
+
+function rollbackBucket(variant, label, count) {
+  const box = el('div', { class: 'bucket' },
+    el('div', { class: 'bucket-head' }, badge(label, variant), el('span', { class: 'meta', text: String(count) })),
+  );
+  const list = el('div', { class: 'bucket-list' });
+  box.appendChild(list);
+  return { box, list };
+}
+
+function renderSnapshotRollback(panel, snapshot, diff) {
+  const total = diff.added.length + diff.modified.length + diff.deleted.length;
+  panel.appendChild(el('div', { class: 'rollback-head' },
+    icon('alert', 16),
+    el('span', { class: 'title', text: `Roll back to snapshot ${snapshot.id.slice(0, 8)}?` }),
+  ));
+  panel.appendChild(el('div', { class: 'rollback-note', text: total
+    ? `Agent memories are rewritten to match the snapshot taken ${timeAgo(snapshot.taken_at)}; ${diff.unchanged_count} already match and stay untouched. File memories are not affected — they roll back from the File memories table.`
+    : 'Nothing to change — the store already matches this snapshot.' }));
+
+  if (diff.added.length) {
+    const { box, list } = rollbackBucket('ok', 'Will be restored', diff.added.length);
+    for (const entry of diff.added) {
+      list.appendChild(el('div', { class: 'bucket-item' }, contentBlock(entry.content, { lines: 2 })));
+    }
+    panel.appendChild(box);
+  }
+
+  if (diff.modified.length) {
+    const { box, list } = rollbackBucket('warn', 'Will be reverted', diff.modified.length);
+    for (const item of diff.modified) {
+      list.appendChild(el('div', { class: 'bucket-item' },
+        el('span', { class: 'label', text: 'now' }),
+        contentBlock(item.before.content, { class: 'diff-before', lines: 2 }),
+        el('span', { class: 'label', text: 'after rollback' }),
+        contentBlock(item.after.content, { class: 'diff-after', lines: 2 }),
+      ));
+    }
+    panel.appendChild(box);
+  }
+
+  if (diff.deleted.length) {
+    const { box, list } = rollbackBucket('crit', 'Will be removed', diff.deleted.length);
+    for (const entry of diff.deleted) {
+      list.appendChild(el('div', { class: 'bucket-item' },
+        el('span', { class: 'label', text: 'now' }),
+        contentBlock(entry.content, { class: 'diff-before', lines: 2 }),
+      ));
+    }
+    panel.appendChild(box);
+  }
+
+  panel.appendChild(el('div', { class: 'rollback-actions' },
+    total ? el('button', {
+      class: 'btn danger',
+      type: 'button',
+      onclick: async (event) => {
+        const confirmButton = event.currentTarget;
+        confirmButton.disabled = true;
+        confirmButton.textContent = 'Rolling back…';
+        try {
+          await api(`/api/snapshots/${snapshot.id}/rollback`, { method: 'POST' });
+          invalidate();
+          toast(`Rolled back to snapshot ${snapshot.id.slice(0, 8)}`);
+          refresh();
+        } catch (err) {
+          confirmButton.disabled = false;
+          confirmButton.textContent = 'Confirm rollback';
+          toast(`Rollback failed — ${err.message}`, 'error');
+        }
+      },
+    }, 'Confirm rollback') : null,
+    el('button', { class: 'btn ghost', type: 'button', text: 'Cancel', onclick: () => panel.remove() }),
+  ));
+}
+
 async function renderDiff() {
   loading(3);
-  const data = await load('diff', '/api/diff');
+  const [data, snapshots] = await Promise.all([
+    load('diff', '/api/diff'),
+    load('snapshots', '/api/snapshots'),
+  ]);
   const fileChanges = data.file_changes || [];
   $app.innerHTML = '';
 
@@ -1029,6 +1146,7 @@ async function renderDiff() {
   controlBar.appendChild(searchInput({ label: 'Search diff', placeholder: 'Search changes' }, renderRows));
   let agentBlock = null;
   let fileBlock = null;
+  let snapBlock = null;
   const changesButton = el('button', {
     class: 'chip',
     type: 'button',
@@ -1040,7 +1158,12 @@ async function renderDiff() {
     type: 'button',
     onclick: () => jumpToSection(fileBlock, filesButton),
   }, 'File memories', el('span', { class: 'n', text: '0' }));
-  controlBar.appendChild(el('div', { class: 'switch', role: 'group', 'aria-label': 'Jump to section' }, changesButton, filesButton));
+  const snapsButton = el('button', {
+    class: 'chip',
+    type: 'button',
+    onclick: () => jumpToSection(snapBlock, snapsButton),
+  }, 'Snapshots', el('span', { class: 'n', text: String(snapshots.length) }));
+  controlBar.appendChild(el('div', { class: 'switch', role: 'group', 'aria-label': 'Jump to section' }, changesButton, filesButton, snapsButton));
   $app.appendChild(controlBar);
 
   const listHost = el('div', {});
@@ -1063,11 +1186,15 @@ async function renderDiff() {
     const agentCount = added.length + modified.length + deleted.length;
     changesButton.querySelector('.n').textContent = String(agentCount);
     filesButton.querySelector('.n').textContent = String(fileRows.length);
+    snapsButton.querySelector('.n').textContent = String(snapshots.length);
     changesButton.hidden = agentCount === 0;
     filesButton.hidden = fileRows.length === 0;
+    snapsButton.hidden = snapshots.length === 0;
     agentBlock = null;
     fileBlock = null;
+    snapBlock = null;
 
+    // No drift is a state of the changes, not of the page: snapshots still list.
     if (!added.length && !modified.length && !deleted.length && !fileRows.length) {
       listHost.appendChild(queryNeedle()
         ? emptyState('search', 'No changes match', `Nothing matches "${ui.query.trim()}".`, clearSearchButton(renderRows))
@@ -1075,7 +1202,6 @@ async function renderDiff() {
           data.snapshot
             ? 'Every memory matches the baseline snapshot.'
             : 'Take a snapshot to record a baseline; later changes will be listed here.'));
-      return;
     }
 
     if (agentCount) {
@@ -1097,9 +1223,17 @@ async function renderDiff() {
       listHost.appendChild(fileBlock);
     }
 
+    if (snapshots.length) {
+      snapBlock = el('section', { class: 'mem-section' });
+      snapBlock.appendChild(el('h2', { class: 'section-title', text: `Snapshots (${snapshots.length})` }));
+      snapBlock.appendChild(el('div', { class: 'meta', text: 'Rolling back rewrites agent memories to match a snapshot. File memories keep their own history.' }));
+      for (const snapshot of snapshots) snapBlock.appendChild(snapshotRow(snapshot));
+      listHost.appendChild(snapBlock);
+    }
+
     watchSections(
-      [agentBlock, fileBlock].filter(Boolean),
-      [changesButton, filesButton].filter((button) => !button.hidden),
+      [agentBlock, fileBlock, snapBlock].filter(Boolean),
+      [changesButton, filesButton, snapsButton].filter((button) => !button.hidden),
     );
     decorateClamps(listHost);
   }
@@ -1133,6 +1267,9 @@ function fileMemoriesTable(files) {
     const actions = el('div', { class: 'row-actions' },
       el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'tree', e.currentTarget, detailRow) }, 'Tree'),
       el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'raw', e.currentTarget, detailRow) }, 'Raw'),
+      d.version > 1
+        ? el('button', { class: 'btn danger', type: 'button', onclick: (e) => openFileRollback(d, body, detailRow, e.currentTarget) }, 'Rollback…')
+        : null,
     );
 
     tbody.appendChild(el('tr', {},
@@ -1188,6 +1325,79 @@ async function toggleDocView(d, body, kind, btn, detailRow) {
     } catch (err) {
       body.appendChild(el('div', { class: 'meta', text: `Could not load raw: ${err.message}` }));
     }
+  }
+}
+
+// File memories roll back from their own history: preview the line diff, then
+// write the previous content back to the file on disk and re-import it.
+async function openFileRollback(doc, body, detailRow, button) {
+  if (body.dataset.view === 'rollback') {
+    body.innerHTML = '';
+    delete body.dataset.view;
+    if (detailRow) detailRow.style.display = 'none';
+    return;
+  }
+  for (const other of button.parentElement.querySelectorAll('.doc-toggle')) other.classList.remove('active');
+  body.dataset.view = 'rollback';
+  if (detailRow) detailRow.style.display = '';
+  body.innerHTML = '';
+
+  const panel = el('div', { class: 'rollback-panel' });
+  panel.appendChild(el('div', { class: 'meta', text: 'Building preview…' }));
+  body.appendChild(panel);
+
+  try {
+    const preview = await api(`/api/documents/${doc.id}/rollback/preview`, { method: 'POST' });
+    panel.innerHTML = '';
+    panel.appendChild(el('div', { class: 'rollback-head' },
+      badge('file', 'accent'),
+      el('span', { class: 'title', text: `Restore the previous version of ${preview.file_name}` }),
+    ));
+    panel.appendChild(el('div', { class: 'rollback-note', text: 'The earlier content is written back to the file on disk and re-imported. Lines marked − are dropped, + are restored.' }));
+
+    const pre = el('pre', { class: 'doc-raw diff-lines' });
+    for (const [sigil, line] of diffLines(preview.before, preview.after)) {
+      pre.appendChild(el('span', {
+        class: sigil === '-' ? 'diff-del' : sigil === '+' ? 'diff-add' : '',
+        text: `${sigil === ' ' ? ' ' : sigil} ${line}\n`,
+      }));
+    }
+    panel.appendChild(pre);
+
+    panel.appendChild(el('div', { class: 'rollback-actions' },
+      el('button', {
+        class: 'btn danger',
+        type: 'button',
+        onclick: async (event) => {
+          const confirmButton = event.currentTarget;
+          confirmButton.disabled = true;
+          confirmButton.textContent = 'Restoring…';
+          try {
+            await api(`/api/documents/${doc.id}/rollback`, { method: 'POST' });
+            invalidate();
+            toast(`Restored the previous version of ${preview.file_name}`);
+            refresh();
+          } catch (err) {
+            confirmButton.disabled = false;
+            confirmButton.textContent = 'Confirm restore';
+            toast(`Restore failed — ${err.message}`, 'error');
+          }
+        },
+      }, 'Confirm restore'),
+      el('button', {
+        class: 'btn ghost',
+        type: 'button',
+        text: 'Cancel',
+        onclick: () => {
+          body.innerHTML = '';
+          delete body.dataset.view;
+          if (detailRow) detailRow.style.display = 'none';
+        },
+      }),
+    ));
+  } catch (err) {
+    panel.innerHTML = '';
+    panel.appendChild(el('div', { class: 'rollback-note', text: `Could not build the preview — ${err.message}` }));
   }
 }
 

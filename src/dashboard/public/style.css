@@ -584,6 +584,63 @@ tr:hover td { background: var(--surface); }
 
 /* ------------------------------------------------------------------- diff */
 
+/* Snapshot list + the two-step rollback preview (preview → confirm). */
+.snap-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur) var(--ease);
+}
+.snap-row:hover { background: var(--surface); }
+.snap-row .row-actions { margin-left: auto; }
+
+.rollback-panel {
+  margin: var(--sp-3) 0 var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-left: 2px solid var(--signal-crit);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.rollback-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-1);
+}
+.rollback-head .title { font-size: var(--fs-lg); font-weight: 600; }
+.rollback-note { color: var(--text-dim); font-size: var(--fs-sm); max-width: 78ch; }
+.rollback-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); }
+
+.bucket { margin-top: var(--sp-4); }
+.bucket-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.bucket-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-height: 300px;
+  overflow-y: auto;
+  padding-left: var(--sp-3);
+  border-left: 1px solid var(--border);
+}
+.bucket-item .label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text-faint);
+  font-size: var(--fs-2xs);
+}
+
 .diff-summary {
   display: flex;
   align-items: center;
