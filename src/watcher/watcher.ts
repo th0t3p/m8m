@@ -2,13 +2,14 @@
 
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import chokidar from 'chokidar';
-import { deleteMemory, getAllMemories, getDb, upsertMemory } from '../core/db.js';
+import { getDb } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
+import { importFileAsDocument } from '../core/importer.js';
 import { expandHome } from '../core/config.js';
 import type { M8mConfig, SourcePlatform } from '../core/types.js';
-import { detectFileFormat, parseJsonMemoryFile, parseMarkdownMemoryFile } from './parsers.js';
+import { detectFileFormat } from './parsers.js';
 
 const DEFAULT_WATCH_PATHS = [
   './.claude/MEMORY.md',
@@ -58,43 +59,10 @@ function handleFileChange(path: string, platform: string): void {
   if (target?.last_hash === hash) return;
 
   const format = detectFileFormat(path);
-  const parsed = format === 'json' ? parseJsonMemoryFile(content) : parseMarkdownMemoryFile(content, path);
-  const base = basename(path);
-
-  const newKeys = new Set<string>();
-  for (let i = 0; i < parsed.length; i++) {
-    const key = `${base}#${parsed[i].line_number ?? i}`;
-    newKeys.add(key);
-  }
-
-  // Soft-delete entries from this file that no longer appear.
-  const existing = getAllMemories().filter(
-    (e) =>
-      e.source_platform === platform &&
-      (e.source_detail?.startsWith(`${base}#`) ?? false) &&
-      e.status !== 'deleted',
-  );
-  for (const e of existing) {
-    if (e.source_detail && !newKeys.has(e.source_detail)) deleteMemory(e.id, 'file_watcher');
-  }
-
-  // Upsert current entries.
-  for (let i = 0; i < parsed.length; i++) {
-    const p = parsed[i];
-    upsertMemory(
-      {
-        content: p.content,
-        source_type: 'document',
-        source_platform: platform as SourcePlatform,
-        source_detail: `${base}#${p.line_number ?? i}`,
-        trust_level: 0.5,
-      },
-      'file_watcher',
-    );
-  }
+  const result = importFileAsDocument(path, platform as SourcePlatform, 'file_watcher');
 
   updateWatchTarget(path, hash);
-  console.log(`[m8m watcher] ${path}: ${parsed.length} entries (platform=${platform})`);
+  console.log(`[m8m watcher] ${path}: 1 document, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
 }
 
 /** Start watching configured memory files for changes. Long-running. */

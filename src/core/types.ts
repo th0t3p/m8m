@@ -150,6 +150,83 @@ export interface ImportResult {
   flagged: number;
 }
 
+export type NodeType = 'section' | 'bullet' | 'numbered' | 'paragraph' | 'code_block' | 'key_value' | 'text';
+
+export interface MemoryDocument {
+  id: string;
+  file_path: string;
+  file_name: string;
+  file_hash: string;
+  file_format: string;
+  title: string | null;
+  raw_content: string;
+  source_platform: SourcePlatform;
+  trust_level: number;
+  anomaly_score: number;
+  status: MemoryStatus;
+  flags_summary: MemoryFlag[];
+  first_seen: string;
+  last_seen: string;
+  last_modified?: string;
+  version: number;
+  nodes?: MemoryNode[];
+}
+
+export interface MemoryNode {
+  id: string;
+  document_id: string;
+  parent_id: string | null;
+  node_type: NodeType;
+  depth: number;
+  position: number;
+  heading: string | null;
+  content: string;
+  content_hash: string;
+  line_start: number | null;
+  line_end: number | null;
+  flags: MemoryFlag[];
+  anomaly_score: number;
+  category: MemoryCategory;
+  children?: MemoryNode[];
+}
+
+export interface DocumentChangelog {
+  id: string;
+  document_id: string;
+  change_type: 'created' | 'modified' | 'deleted';
+  old_hash?: string;
+  new_hash?: string;
+  nodes_added: number;
+  nodes_modified: number;
+  nodes_deleted: number;
+  changed_at: string;
+  detected_by: DetectionSource;
+}
+
+export interface ParsedNode {
+  node_type: NodeType;
+  heading?: string;
+  content: string;
+  line_start?: number;
+  line_end?: number;
+  children: ParsedNode[];
+}
+
+export interface ParsedDocument {
+  title?: string;
+  nodes: ParsedNode[];
+}
+
+export interface DocumentImportResult {
+  document_id: string;
+  is_new: boolean;
+  total_nodes: number;
+  flagged_nodes: number;
+  nodes_added: number;
+  nodes_modified: number;
+  nodes_deleted: number;
+}
+
 export const DEFAULT_TRUST_LEVELS: Record<SourceType, number> = {
   user_explicit: 0.9,
   conversation: 0.7,

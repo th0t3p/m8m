@@ -128,6 +128,7 @@ export function analyzeEntry(
   existingMemories: MemoryEntry[] = [],
   sourceType?: string,
   sourcePlatform?: string,
+  context?: { parent_heading?: string; node_type?: string },
 ): AnalysisResult {
   const flags: MemoryFlag[] = [];
 
@@ -145,15 +146,18 @@ export function analyzeEntry(
   const hasUrl = URL_REGEX.test(content);
   const hasEmail = EMAIL_REGEX.test(content);
   const instructionContext = isInstruction(content);
+  // URLs/emails inside code blocks are usually illustrative, not suspicious.
+  const inCodeBlock = context?.node_type === 'code_block';
 
   // 2. URL detection
   if (hasUrl) {
     const url = content.match(URL_REGEX)?.[0] ?? '';
+    const severity = instructionContext && !inCodeBlock ? 'warning' : 'info';
     flags.push(
       flag(
         'contains_url',
         `URL detected${instructionContext ? ' alongside an instruction' : ''}: ${url}`,
-        instructionContext ? 'warning' : 'info',
+        severity,
       ),
     );
   }
@@ -161,11 +165,12 @@ export function analyzeEntry(
   // 3. Email detection
   if (hasEmail) {
     const email = content.match(EMAIL_REGEX)?.[0] ?? '';
+    const severity = instructionContext && !inCodeBlock ? 'warning' : 'info';
     flags.push(
       flag(
         'contains_email',
         `Email detected${instructionContext ? ' alongside an instruction' : ''}: ${email}`,
-        instructionContext ? 'warning' : 'info',
+        severity,
       ),
     );
   }

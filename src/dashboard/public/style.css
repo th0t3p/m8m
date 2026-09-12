@@ -692,3 +692,23 @@ tr:hover td { background: var(--surface); }
   }
   .sk-row { animation: none; }
 }
+
+/* Documents view */
+.doc-list { display: flex; flex-direction: column; gap: 12px; }
+.doc-card .doc-body { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.doc-tree { list-style: none; margin: 0; padding-left: 16px; }
+.doc-node { margin: 4px 0; }
+.doc-node-row { gap: 6px; }
+.doc-node-content { color: var(--text); font-size: 13px; }
+.doc-raw {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0;
+}

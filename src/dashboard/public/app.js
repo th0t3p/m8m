@@ -638,9 +638,83 @@ async function renderDiff() {
   for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
 }
 
+/* -------------------------------------------------------------- documents */
+
+async function renderDocuments() {
+  loading(4);
+  const docs = await load('documents', '/api/documents');
+  $app.innerHTML = '';
+  $app.appendChild(pageHead('Documents', docs.length ? `${docs.length} imported files, structured as versioned trees` : 'No documents imported', []));
+
+  if (!docs.length) {
+    $app.appendChild(emptyState('file', 'No documents yet', 'Import a file with "m8m import <file>" or "m8m scan" — files land here as document trees, not shredded lines.'));
+    return;
+  }
+
+  const list = el('div', { class: 'doc-list' });
+  for (const d of docs) list.appendChild(documentCard(d));
+  $app.appendChild(list);
+}
+
+function documentCard(d) {
+  const card = el('div', { class: 'card doc-card' });
+  const head = el('div', { class: 'row' });
+  head.appendChild(icon('file'));
+  head.appendChild(el('strong', { text: d.file_name }));
+  head.appendChild(badge(platform(d.source_platform), 'accent'));
+  head.appendChild(badge(`v${d.version}`, 'mono', { mono: true }));
+  if (d.flags_summary && d.flags_summary.length) head.appendChild(badge(`${d.flags_summary.length} flagged`, 'warn'));
+  card.appendChild(head);
+  card.appendChild(el('div', { class: 'meta', text: `${d.file_path} · ${timeAgo(d.last_modified || d.last_seen)}` }));
+
+  const body = el('div', { class: 'doc-body' });
+  const actions = el('div', { class: 'row', style: 'margin-top:8px' },
+    el('button', { class: 'btn ghost', onclick: () => toggleDocTree(d.id, body) }, 'Tree'),
+    el('button', { class: 'btn ghost', onclick: () => toggleDocRaw(d.id, body) }, 'Raw'),
+  );
+  card.appendChild(actions);
+  card.appendChild(body);
+  return card;
+}
+
+async function toggleDocTree(id, body) {
+  body.innerHTML = '';
+  try {
+    const doc = await api(`/api/documents/${id}`);
+    body.appendChild(renderDocTree(doc.nodes || []));
+  } catch (err) {
+    body.appendChild(el('div', { class: 'meta', text: `Could not load tree: ${err.message}` }));
+  }
+}
+
+async function toggleDocRaw(id, body) {
+  body.innerHTML = '';
+  try {
+    const raw = await api(`/api/documents/${id}/raw`);
+    body.appendChild(el('pre', { class: 'doc-raw', text: raw }));
+  } catch (err) {
+    body.appendChild(el('div', { class: 'meta', text: `Could not load raw: ${err.message}` }));
+  }
+}
+
+function renderDocTree(nodes) {
+  const ul = el('ul', { class: 'doc-tree' });
+  for (const n of nodes) {
+    const li = el('li', { class: 'doc-node' });
+    const row = el('div', { class: 'row doc-node-row' });
+    row.appendChild(badge(n.node_type, 'mono', { mono: true }));
+    row.appendChild(el('span', { class: 'doc-node-content', text: truncate(n.heading || n.content.replace(/\s+/g, ' '), 120) }));
+    if (n.flags && n.flags.length) row.appendChild(badge(String(n.flags.length), 'warn'));
+    li.appendChild(row);
+    if (n.children && n.children.length) li.appendChild(renderDocTree(n.children));
+    ul.appendChild(li);
+  }
+  return ul;
+}
+
 /* --------------------------------------------------------------- bootstrap */
 
-const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff };
+const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff, documents: renderDocuments };
 
 function refresh() {
   const active = document.querySelector('.tab[aria-current="page"]') || document.querySelector('.tab');

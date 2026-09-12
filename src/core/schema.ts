@@ -93,4 +93,64 @@ export const SCHEMA_STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_changelog_changed_at ON memory_changelog(changed_at)`,
   `CREATE INDEX IF NOT EXISTS idx_events_severity ON security_events(severity)`,
   `CREATE INDEX IF NOT EXISTS idx_events_resolved ON security_events(resolved_at)`,
+
+  // Documents: one row per imported file, stores the complete raw content
+  `CREATE TABLE IF NOT EXISTS memory_documents (
+    id TEXT PRIMARY KEY,
+    file_path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_hash TEXT NOT NULL,
+    file_format TEXT NOT NULL,
+    title TEXT,
+    raw_content TEXT NOT NULL,
+    source_platform TEXT NOT NULL DEFAULT 'unknown',
+    trust_level REAL NOT NULL DEFAULT 0.5,
+    anomaly_score REAL NOT NULL DEFAULT 0.0,
+    status TEXT NOT NULL DEFAULT 'active',
+    flags_summary TEXT DEFAULT '[]',
+    first_seen DATETIME NOT NULL DEFAULT (datetime('now')),
+    last_seen DATETIME NOT NULL DEFAULT (datetime('now')),
+    last_modified DATETIME,
+    version INTEGER NOT NULL DEFAULT 1
+  )`,
+
+  // Nodes: tree structure within a document
+  `CREATE TABLE IF NOT EXISTS memory_nodes (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL REFERENCES memory_documents(id) ON DELETE CASCADE,
+    parent_id TEXT REFERENCES memory_nodes(id),
+    node_type TEXT NOT NULL,
+    depth INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    heading TEXT,
+    content TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    line_start INTEGER,
+    line_end INTEGER,
+    flags TEXT DEFAULT '[]',
+    anomaly_score REAL NOT NULL DEFAULT 0.0,
+    category TEXT DEFAULT 'unknown'
+  )`,
+
+  // Document changelog: tracks changes to documents over time
+  `CREATE TABLE IF NOT EXISTS document_changelog (
+    id TEXT PRIMARY KEY,
+    document_id TEXT NOT NULL,
+    change_type TEXT NOT NULL,
+    old_hash TEXT,
+    new_hash TEXT,
+    nodes_added INTEGER DEFAULT 0,
+    nodes_modified INTEGER DEFAULT 0,
+    nodes_deleted INTEGER DEFAULT 0,
+    changed_at DATETIME NOT NULL DEFAULT (datetime('now')),
+    detected_by TEXT NOT NULL
+  )`,
+
+  // Indexes for document layer
+  `CREATE INDEX IF NOT EXISTS idx_documents_file_path ON memory_documents(file_path)`,
+  `CREATE INDEX IF NOT EXISTS idx_documents_status ON memory_documents(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_documents_platform ON memory_documents(source_platform)`,
+  `CREATE INDEX IF NOT EXISTS idx_nodes_document_id ON memory_nodes(document_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_nodes_parent_id ON memory_nodes(parent_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_doc_changelog_document_id ON document_changelog(document_id)`,
 ];

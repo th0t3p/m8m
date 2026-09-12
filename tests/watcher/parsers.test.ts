@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   detectFileFormat,
   detectFileType,
+  parseDocumentTree,
   parseJsonConfig,
   parseJsonMemoryFile,
   parseMarkdownMemoryFile,
+  parseMarkdownTree,
   parseTomlConfig,
   parseYamlConfig,
 } from '../../src/watcher/parsers.js';
@@ -142,5 +144,82 @@ describe('detectFileFormat', () => {
     expect(detectFileFormat('x.yaml')).toBe('yaml');
     expect(detectFileFormat('x.db')).toBe('sqlite');
     expect(detectFileFormat('x.xyz')).toBe('unknown');
+  });
+});
+
+describe('parseMarkdownTree', () => {
+  it('produces section nodes with correct children', () => {
+    const md = [
+      '## Design principles',
+      '- Palette: few colours.',
+      '- Typography: tracking-tight.',
+      '',
+      '## Process',
+      '1. Critique before styling.',
+      '2. Review a screenshot.',
+    ].join('\n');
+    const doc = parseMarkdownTree(md);
+    expect(doc.nodes).toHaveLength(2);
+    expect(doc.nodes[0].node_type).toBe('section');
+    expect(doc.nodes[0].heading).toBe('Design principles');
+    expect(doc.nodes[0].children).toHaveLength(2);
+    expect(doc.nodes[0].children[0].node_type).toBe('bullet');
+    expect(doc.nodes[1].heading).toBe('Process');
+    expect(doc.nodes[1].children[0].node_type).toBe('numbered');
+  });
+
+  it('keeps multi-line bullets together', () => {
+    const md = ['- First point', '  continued here', '  and here', '- Second point'].join('\n');
+    const doc = parseMarkdownTree(md);
+    expect(doc.nodes).toHaveLength(2);
+    expect(doc.nodes[0].content).toContain('continued here');
+    expect(doc.nodes[0].content).toContain('and here');
+  });
+
+  it('never splits code blocks', () => {
+    const md = ['## Usage', '```python', 'a = 1', 'b = 2', 'c = 3', '```'].join('\n');
+    const doc = parseMarkdownTree(md);
+    const code = doc.nodes[0].children.find((c) => c.node_type === 'code_block');
+    expect(code).toBeTruthy();
+    expect(code!.content).toContain('a = 1');
+    expect(code!.content).toContain('c = 3');
+  });
+
+  it('nests headers by depth', () => {
+    const md = ['## Parent', '### Child1', 'text one', '### Child2', 'text two'].join('\n');
+    const doc = parseMarkdownTree(md);
+    expect(doc.nodes).toHaveLength(1);
+    expect(doc.nodes[0].children).toHaveLength(2);
+    expect(doc.nodes[0].children[0].heading).toBe('Child1');
+  });
+
+  it('treats paragraphs as root nodes when no headers exist', () => {
+    const md = ['First paragraph.', '', 'Second paragraph.', '', 'Third.'].join('\n');
+    const doc = parseMarkdownTree(md);
+    expect(doc.nodes).toHaveLength(3);
+    expect(doc.nodes.every((n) => n.node_type === 'paragraph')).toBe(true);
+  });
+
+  it('tracks line numbers', () => {
+    const md = ['## A', 'line two', 'line three'].join('\n');
+    const doc = parseMarkdownTree(md);
+    expect(doc.nodes[0].line_start).toBe(1);
+    expect(doc.nodes[0].children[0].line_start).toBe(2);
+  });
+
+  it('handles empty files', () => {
+    expect(parseMarkdownTree('')).toEqual({ title: undefined, nodes: [] });
+  });
+});
+
+describe('parseDocumentTree', () => {
+  it('dispatches JSON to tree parser', () => {
+    const doc = parseDocumentTree(JSON.stringify({ mcpServers: { m8m: { command: 'npx', args: ['@th0t3p/m8m', 'mcp'] } } }), 'x.json');
+    expect(doc.nodes[0].heading).toBe('m8m');
+  });
+
+  it('dispatches TOML to tree parser', () => {
+    const doc = parseDocumentTree('[mcp_servers.m8m]\ncommand = "npx"', 'x.toml');
+    expect(doc.nodes[0].heading).toBe('mcp_servers.m8m');
   });
 });

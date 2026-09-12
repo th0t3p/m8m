@@ -1,6 +1,6 @@
 // Parsers for memory file formats (markdown, JSON, TOML, YAML).
 
-import type { ParsedMemory } from '../core/types.js';
+import type { NodeType, ParsedDocument, ParsedMemory, ParsedNode } from '../core/types.js';
 
 function pushLine(
   out: ParsedMemory[],
@@ -364,4 +364,277 @@ export function detectFileFormat(filePath: string): 'markdown' | 'json' | 'sqlit
   if (lower.endsWith('.md') || lower.endsWith('.markdown') || lower.endsWith('.txt') || lower.endsWith('.mdc')) return 'markdown';
   if (lower.endsWith('.db') || lower.endsWith('.sqlite') || lower.endsWith('.sqlite3')) return 'sqlite';
   return 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// Document tree parsers (structured documents)
+// ---------------------------------------------------------------------------
+
+interface Block {
+  type: NodeType;
+  heading?: string;
+  content: string;
+  line_start: number;
+  line_end: number;
+  depth: number;
+}
+
+function buildNodeTree(blocks: Block[]): ParsedNode[] {
+  const roots: ParsedNode[] = [];
+  const stack: { depth: number; node: ParsedNode }[] = [];
+
+  for (const b of blocks) {
+    const node: ParsedNode = {
+      node_type: b.type,
+      content: b.content,
+      line_start: b.line_start,
+      line_end: b.line_end,
+      children: [],
+    };
+    if (b.heading !== undefined) node.heading = b.heading;
+
+    if (b.type === 'section') {
+      const depth = Math.max(0, b.depth);
+      while (stack.length > depth) stack.pop();
+      if (stack.length === 0) roots.push(node);
+      else stack[stack.length - 1].node.children.push(node);
+      stack.push({ depth, node });
+    } else {
+      if (stack.length === 0) roots.push(node);
+      else stack[stack.length - 1].node.children.push(node);
+    }
+  }
+  return roots;
+}
+
+export function parseDocumentTree(content: string, filePath: string): ParsedDocument {
+  const ext = filePath.toLowerCase().split('.').pop() ?? '';
+  if (ext === 'json') return parseJsonTree(content);
+  if (ext === 'toml') return parseTomlTree(content);
+  if (ext === 'yml' || ext === 'yaml') return parseYamlTree(content);
+  return parseMarkdownTree(content);
+}
+
+export function parseMarkdownTree(content: string): ParsedDocument {
+  const lines = content.split(/\r?\n/);
+
+  let title: string | undefined;
+  let minHeaderLevel = 7;
+  for (const line of lines) {
+    const m = line.trim().match(/^(#{1,6})\s+(.*)$/);
+    if (m) {
+      if (!title && m[1].length === 1) title = m[2].trim();
+      else minHeaderLevel = Math.min(minHeaderLevel, m[1].length);
+    }
+  }
+  const baseLevel = minHeaderLevel === 7 ? 1 : minHeaderLevel;
+
+  const blocks: Block[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      i++;
+      continue;
+    }
+
+    // Code fence — always one node, never split.
+    if (trimmed.startsWith('```')) {
+      const start = i + 1;
+      const buf = [raw];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        buf.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) {
+        buf.push(lines[i]);
+        i++;
+      }
+      blocks.push({ type: 'code_block', content: buf.join('\n'), line_start: start, line_end: i, depth: 0 });
+      continue;
+    }
+
+    // Header → section.
+    const hm = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (hm) {
+      const level = hm[1].length;
+      blocks.push({ type: 'section', heading: hm[2].trim(), content: raw, line_start: i + 1, line_end: i + 1, depth: level - baseLevel });
+      i++;
+      continue;
+    }
+
+    // Bullet (with indented continuation lines).
+    if (/^[-*+]\s+/.test(trimmed)) {
+      const start = i + 1;
+      const buf = [raw];
+      i++;
+      while (i < lines.length) {
+        const t = lines[i].trim();
+        if (!t) break;
+        if (/^[-*+]\s+/.test(t) || /^\d+[.)]\s+/.test(t) || /^#{1,6}\s+/.test(t) || t.startsWith('```')) break;
+        if (/^\s+/.test(lines[i])) {
+          buf.push(lines[i]);
+          i++;
+        } else break;
+      }
+      blocks.push({ type: 'bullet', content: buf.join('\n'), line_start: start, line_end: i, depth: 0 });
+      continue;
+    }
+
+    // Numbered item (with indented continuation lines).
+    if (/^\d+[.)]\s+/.test(trimmed)) {
+      const start = i + 1;
+      const buf = [raw];
+      i++;
+      while (i < lines.length) {
+        const t = lines[i].trim();
+        if (!t) break;
+        if (/^[-*+]\s+/.test(t) || /^\d+[.)]\s+/.test(t) || /^#{1,6}\s+/.test(t) || t.startsWith('```')) break;
+        if (/^\s+/.test(lines[i])) {
+          buf.push(lines[i]);
+          i++;
+        } else break;
+      }
+      blocks.push({ type: 'numbered', content: buf.join('\n'), line_start: start, line_end: i, depth: 0 });
+      continue;
+    }
+
+    // Paragraph — consecutive non-blank, non-special lines.
+    const start = i + 1;
+    const buf = [raw];
+    i++;
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (!t) break;
+      if (/^[-*+]\s+/.test(t) || /^\d+[.)]\s+/.test(t) || /^#{1,6}\s+/.test(t) || t.startsWith('```')) break;
+      buf.push(lines[i]);
+      i++;
+    }
+    const joined = buf.join('\n').trim();
+    const isKeyValue = buf.length === 1 && /^[A-Za-z_][\w.-]*\s*:\s+/.test(joined);
+    blocks.push({ type: isKeyValue ? 'key_value' : 'paragraph', content: buf.join('\n'), line_start: start, line_end: i, depth: 0 });
+  }
+
+  return { title, nodes: buildNodeTree(blocks) };
+}
+
+export function parseJsonTree(content: string): ParsedDocument {
+  let data: unknown;
+  try {
+    data = JSON.parse(content);
+  } catch {
+    return { title: undefined, nodes: [] };
+  }
+
+  const jsonToNodes = (value: unknown): ParsedNode[] => {
+    if (value == null) return [];
+    if (Array.isArray(value)) {
+      return value.map((item, idx) => {
+        if (typeof item === 'string') return { node_type: 'bullet' as NodeType, content: item, children: [] };
+        if (item && typeof item === 'object') {
+          return { node_type: 'section' as NodeType, heading: `[${idx}]`, content: JSON.stringify(item), children: jsonToNodes(item) };
+        }
+        return { node_type: 'text' as NodeType, content: String(item), children: [] };
+      });
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const nodes: ParsedNode[] = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (v && typeof v === 'object') {
+          nodes.push({ node_type: 'section', heading: k, content: JSON.stringify(v), children: jsonToNodes(v) });
+        } else {
+          nodes.push({ node_type: 'key_value', heading: k, content: `${k}: ${JSON.stringify(v)}`, children: [] });
+        }
+      }
+      return nodes;
+    }
+    return [{ node_type: 'text', content: String(value), children: [] }];
+  };
+
+  const obj = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : null;
+  if (obj && (obj.mcpServers || obj.mcp_servers)) {
+    const servers = (obj.mcpServers ?? obj.mcp_servers) as Record<string, unknown>;
+    const nodes: ParsedNode[] = [];
+    for (const [name, cfg] of Object.entries(servers)) {
+      if (cfg && typeof cfg === 'object') {
+        const c = cfg as Record<string, unknown>;
+        const command = c.command ? String(c.command) : '';
+        const args = Array.isArray(c.args) ? (c.args as unknown[]).map(String).join(' ') : c.args ? String(c.args) : '';
+        nodes.push({
+          node_type: 'section',
+          heading: name,
+          content: `MCP server: ${name} → ${[command, args].filter(Boolean).join(' ')}`.trim(),
+          children: jsonToNodes(cfg),
+        });
+      } else {
+        nodes.push({ node_type: 'section', heading: name, content: `MCP server: ${name} → ${String(cfg)}`, children: [] });
+      }
+    }
+    return { title: undefined, nodes };
+  }
+
+  return { title: undefined, nodes: jsonToNodes(data) };
+}
+
+export function parseTomlTree(content: string): ParsedDocument {
+  const lines = content.split(/\r?\n/);
+  const nodes: ParsedNode[] = [];
+  let current: ParsedNode | null = null;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const sec = t.match(/^\[(.+)\]$/);
+    if (sec) {
+      current = { node_type: 'section', heading: sec[1], content: `[${sec[1]}]`, children: [] };
+      nodes.push(current);
+      continue;
+    }
+    if (/^[A-Za-z_][\w.-]*\s*=/.test(t)) {
+      const node: ParsedNode = { node_type: 'key_value', content: t, children: [] };
+      (current ? current.children : nodes).push(node);
+    }
+  }
+  return { title: undefined, nodes };
+}
+
+export function parseYamlTree(content: string): ParsedDocument {
+  const lines = content.split(/\r?\n/);
+  const nodes: ParsedNode[] = [];
+  const stack: { indent: number; node: ParsedNode }[] = [];
+
+  for (const line of lines) {
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+    const indent = (line.match(/^\s*/) ?? [''])[0].length;
+    const t = line.trim();
+
+    const item = t.match(/^-\s+(.*)$/);
+    const kv = t.match(/^([A-Za-z_][\w.-]*):(?:\s+(.*))?$/);
+
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+
+    if (item) {
+      const node: ParsedNode = { node_type: 'bullet', content: item[1], children: [] };
+      if (stack.length) stack[stack.length - 1].node.children.push(node);
+      else nodes.push(node);
+      stack.push({ indent, node });
+    } else if (kv) {
+      const value = kv[2] ?? '';
+      if (value === '') {
+        const node: ParsedNode = { node_type: 'section', heading: kv[1], content: `${kv[1]}:`, children: [] };
+        if (stack.length) stack[stack.length - 1].node.children.push(node);
+        else nodes.push(node);
+        stack.push({ indent, node });
+      } else {
+        const node: ParsedNode = { node_type: 'key_value', heading: kv[1], content: `${kv[1]}: ${value}`, children: [] };
+        if (stack.length) stack[stack.length - 1].node.children.push(node);
+        else nodes.push(node);
+      }
+    }
+  }
+  return { title: undefined, nodes };
 }

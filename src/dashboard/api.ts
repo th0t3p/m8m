@@ -4,9 +4,14 @@ import { Router } from 'express';
 import {
   createSnapshot,
   flagMemory,
+  getAllDocuments,
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getDocument,
+  getDocumentChangelog,
+  getDocumentStats,
+  getDocumentWithNodes,
   getMemory,
   getSecurityEvents,
   getStats,
@@ -20,6 +25,35 @@ import type { MemoryStatus, SourcePlatform } from '../core/types.js';
 
 export function registerApi(): Router {
   const router = Router();
+
+  // Documents layer
+  router.get('/api/documents/stats', (_req, res) => {
+    res.json(getDocumentStats());
+  });
+
+  router.get('/api/documents', (_req, res) => {
+    const docs = getAllDocuments().map((d) => {
+      const { raw_content: _raw, ...rest } = d as unknown as Record<string, unknown>;
+      return rest;
+    });
+    res.json(docs);
+  });
+
+  router.get('/api/documents/:id/raw', (req, res) => {
+    const doc = getDocument(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    res.type('text/plain').send(doc.raw_content);
+  });
+
+  router.get('/api/documents/:id/changelog', (req, res) => {
+    res.json(getDocumentChangelog(req.params.id));
+  });
+
+  router.get('/api/documents/:id', (req, res) => {
+    const doc = getDocumentWithNodes(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'not found' });
+    res.json(doc);
+  });
 
   router.get('/api/memories/stats', (_req, res) => {
     res.json(getStats());

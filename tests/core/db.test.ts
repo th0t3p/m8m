@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  buildNodeTree,
   clearAllMemories,
   createSecurityEvent,
   createSnapshot,
   deleteMemory,
   getAllMemories,
   getChangelog,
+  getDocumentChangelog,
+  getDocumentWithNodes,
   getLatestSnapshot,
   getMemory,
+  getNodesForDocument,
   getSecurityEvents,
   getStats,
   initDatabase,
   resolveSecurityEvent,
   updateMemoryStatus,
+  upsertDocument,
   upsertMemory,
 } from '../../src/core/db.js';
 
@@ -106,5 +111,65 @@ describe('db — stats', () => {
     expect(s.active).toBe(2);
     expect(s.by_platform.claude_code).toBe(1);
     expect(s.by_platform.local_file).toBe(1);
+  });
+});
+
+describe('db — documents', () => {
+  it('upsertDocument creates document + nodes + changelog', () => {
+    const parsed = {
+      title: 'Test Doc',
+      nodes: [
+        { node_type: 'section', heading: 'Intro', content: '# Intro', children: [{ node_type: 'paragraph', content: 'Hello world', children: [] }] },
+      ],
+    };
+    const doc = upsertDocument('/tmp/test.md', '# Intro\n\nHello world', parsed, 'local_file', 0.5, 'cli');
+    expect(doc.id).toBeTruthy();
+    expect(doc.title).toBe('Test Doc');
+    expect(doc.raw_content).toBe('# Intro\n\nHello world');
+    expect(getNodesForDocument(doc.id)).toHaveLength(2);
+    expect(getDocumentChangelog(doc.id)).toHaveLength(1);
+  });
+
+  it('upsertDocument with same hash only updates last_seen', () => {
+    const parsed = { title: 'T', nodes: [] };
+    const a = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', 0.5, 'cli');
+    const b = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', 0.5, 'cli');
+    expect(b.id).toBe(a.id);
+    expect(b.version).toBe(1);
+    expect(getDocumentChangelog(a.id)).toHaveLength(1);
+  });
+
+  it('upsertDocument with different hash creates a new version', () => {
+    const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'one', children: [] }] };
+    const a = upsertDocument('/tmp/b.md', 'one', parsed, 'local_file', 0.5, 'cli');
+    const parsed2 = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'two', children: [] }] };
+    const b = upsertDocument('/tmp/b.md', 'two', parsed2, 'local_file', 0.5, 'cli');
+    expect(b.id).toBe(a.id);
+    expect(b.version).toBe(2);
+    expect(b.raw_content).toBe('two');
+    expect(getDocumentChangelog(a.id)).toHaveLength(2);
+  });
+
+  it('getDocumentWithNodes returns a nested tree', () => {
+    const parsed = {
+      title: 'Tree',
+      nodes: [
+        { node_type: 'section', heading: 'S', content: '## S', children: [{ node_type: 'bullet', content: '- b', children: [] }] },
+      ],
+    };
+    const doc = upsertDocument('/tmp/c.md', '## S\n- b', parsed, 'local_file', 0.5, 'cli');
+    const full = getDocumentWithNodes(doc.id)!;
+    expect(full.nodes![0].heading).toBe('S');
+    expect(full.nodes![0].children![0].node_type).toBe('bullet');
+  });
+
+  it('buildNodeTree nests children under parents', () => {
+    const flat = [
+      { id: 'n1', document_id: 'd', parent_id: null, node_type: 'section', depth: 0, position: 0, heading: 'A', content: '', content_hash: '', line_start: null, line_end: null, flags: [], anomaly_score: 0, category: 'unknown' },
+      { id: 'n2', document_id: 'd', parent_id: 'n1', node_type: 'bullet', depth: 1, position: 0, heading: null, content: '', content_hash: '', line_start: null, line_end: null, flags: [], anomaly_score: 0, category: 'unknown' },
+    ];
+    const tree = buildNodeTree(flat);
+    expect(tree).toHaveLength(1);
+    expect(tree[0].children).toHaveLength(1);
   });
 });

@@ -3,10 +3,11 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { getAllMemories, upsertMemory } from './db.js';
+import { getAllMemories, getDocumentByPath, getNodesForDocument, upsertDocument, upsertMemory } from './db.js';
 import { hashContent } from './hasher.js';
 import {
   detectFileFormat,
+  parseDocumentTree,
   parseJsonConfig,
   parseJsonMemoryFile,
   parseMarkdownMemoryFile,
@@ -15,6 +16,7 @@ import {
 } from '../watcher/parsers.js';
 import type {
   DetectionSource,
+  DocumentImportResult,
   ImportResult,
   MemoryEntry,
   SourcePlatform,
@@ -157,3 +159,29 @@ export function importBatch(entries: MemoryEntry[], detectedBy: DetectionSource)
   }
   return result;
 }
+
+/** Import a local file as a structured document (tree nodes, raw content versioned). */
+export function importFileAsDocument(
+  filePath: string,
+  platform: SourcePlatform,
+  detectedBy: DetectionSource,
+): DocumentImportResult {
+  const rawContent = readText(filePath);
+  const parsedDoc = parseDocumentTree(rawContent, filePath);
+  const existing = getDocumentByPath(filePath);
+  const isNew = !existing;
+
+  const doc = upsertDocument(filePath, rawContent, parsedDoc, platform, 0.5, detectedBy);
+  const nodes = getNodesForDocument(doc.id);
+
+  return {
+    document_id: doc.id,
+    is_new: isNew,
+    total_nodes: nodes.length,
+    flagged_nodes: nodes.filter((n) => n.flags.length > 0).length,
+    nodes_added: isNew ? nodes.length : 0,
+    nodes_modified: isNew ? 0 : nodes.length,
+    nodes_deleted: 0,
+  };
+}
+

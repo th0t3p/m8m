@@ -1,22 +1,30 @@
 // SQLite database initialization and typed CRUD operations.
 
 import { randomUUID } from 'node:crypto';
+import { basename } from 'node:path';
 import Database from 'better-sqlite3';
 import { analyzeEntry } from './analyzer.js';
 import { ensureParentDir } from './config.js';
 import { hashContent, hashSnapshot } from './hasher.js';
 import { SCHEMA_STATEMENTS } from './schema.js';
+import { detectFileFormat } from '../watcher/parsers.js';
 import type {
   ChangelogEntry,
   ChangelogFilters,
   DetectionSource,
+  DocumentChangelog,
   EventSeverity,
   MemoryCategory,
+  MemoryDocument,
   MemoryEntry,
   MemoryFilters,
   MemoryFlag,
+  MemoryNode,
   MemoryStatus,
   M8mStats,
+  NodeType,
+  ParsedDocument,
+  ParsedNode,
   SecurityEvent,
   SecurityEventFilters,
   Snapshot,
@@ -650,5 +658,293 @@ export function getStats(): M8mStats {
     by_platform: group(`SELECT source_platform AS k, COUNT(*) AS c FROM memory_entries GROUP BY source_platform`),
     by_source_type: group(`SELECT source_type AS k, COUNT(*) AS c FROM memory_entries GROUP BY source_type`),
     by_category: group(`SELECT category AS k, COUNT(*) AS c FROM memory_entries GROUP BY category`),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Document layer (file-based structured imports)
+// ---------------------------------------------------------------------------
+
+function rowToDocument(r: any): MemoryDocument {
+  return {
+    id: r.id,
+    file_path: r.file_path,
+    file_name: r.file_name,
+    file_hash: r.file_hash,
+    file_format: r.file_format,
+    title: r.title ?? null,
+    raw_content: r.raw_content,
+    source_platform: r.source_platform as SourcePlatform,
+    trust_level: r.trust_level,
+    anomaly_score: r.anomaly_score,
+    status: r.status as MemoryStatus,
+    flags_summary: parseJsonArray<MemoryFlag>(r.flags_summary, []),
+    first_seen: r.first_seen,
+    last_seen: r.last_seen,
+    last_modified: r.last_modified ?? undefined,
+    version: r.version,
+  };
+}
+
+function rowToNode(r: any): MemoryNode {
+  return {
+    id: r.id,
+    document_id: r.document_id,
+    parent_id: r.parent_id ?? null,
+    node_type: r.node_type as NodeType,
+    depth: r.depth,
+    position: r.position,
+    heading: r.heading ?? null,
+    content: r.content,
+    content_hash: r.content_hash,
+    line_start: r.line_start ?? null,
+    line_end: r.line_end ?? null,
+    flags: parseJsonArray<MemoryFlag>(r.flags, []),
+    anomaly_score: r.anomaly_score,
+    category: r.category as MemoryCategory,
+  };
+}
+
+function rowToDocChangelog(r: any): DocumentChangelog {
+  return {
+    id: r.id,
+    document_id: r.document_id,
+    change_type: r.change_type,
+    old_hash: r.old_hash ?? undefined,
+    new_hash: r.new_hash ?? undefined,
+    nodes_added: r.nodes_added ?? 0,
+    nodes_modified: r.nodes_modified ?? 0,
+    nodes_deleted: r.nodes_deleted ?? 0,
+    changed_at: r.changed_at,
+    detected_by: r.detected_by as DetectionSource,
+  };
+}
+
+function insertDocumentNodes(
+  documentId: string,
+  nodes: ParsedNode[],
+  platform: SourcePlatform,
+  trustLevel: number,
+  parentId: string | null,
+  depth: number,
+  position: number,
+  hashes: Set<string>,
+  parentHeading?: string,
+): { flagged: number } {
+  const d = requireDb();
+  let flagged = 0;
+
+  for (const node of nodes) {
+    const analysis = analyzeEntry(node.content, [], 'document', platform, {
+      parent_heading: parentHeading,
+      node_type: node.node_type,
+    });
+    const hash = hashContent(node.content, 'document');
+    hashes.add(hash);
+    if (analysis.flags.length > 0) flagged++;
+
+    const id = randomUUID();
+    d.prepare(
+      `INSERT INTO memory_nodes
+        (id, document_id, parent_id, node_type, depth, position, heading, content, content_hash, line_start, line_end, flags, anomaly_score, category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      documentId,
+      parentId,
+      node.node_type,
+      depth,
+      position,
+      node.heading ?? null,
+      node.content,
+      hash,
+      node.line_start ?? null,
+      node.line_end ?? null,
+      JSON.stringify(analysis.flags),
+      analysis.anomaly_score,
+      analysis.category,
+    );
+
+    let childPos = 0;
+    for (const child of node.children ?? []) {
+      flagged += insertDocumentNodes(
+        documentId,
+        [child],
+        platform,
+        trustLevel,
+        id,
+        depth + 1,
+        childPos++,
+        hashes,
+        node.heading ?? parentHeading,
+      ).flagged;
+    }
+  }
+  return { flagged };
+}
+
+function updateDocumentSummary(documentId: string): void {
+  const d = requireDb();
+  const rows = d.prepare(`SELECT flags, anomaly_score FROM memory_nodes WHERE document_id = ?`).all(documentId) as any[];
+  let maxAnomaly = 0;
+  const allFlags: MemoryFlag[] = [];
+  for (const r of rows) {
+    maxAnomaly = Math.max(maxAnomaly, r.anomaly_score);
+    allFlags.push(...parseJsonArray<MemoryFlag>(r.flags, []));
+  }
+  const seen = new Set<string>();
+  const unique = allFlags.filter((f) => {
+    const k = `${f.type}|${f.detail}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  d.prepare(`UPDATE memory_documents SET flags_summary = ?, anomaly_score = ? WHERE id = ?`).run(
+    JSON.stringify(unique),
+    maxAnomaly,
+    documentId,
+  );
+}
+
+export function upsertDocument(
+  filePath: string,
+  rawContent: string,
+  parsedDoc: ParsedDocument,
+  platform: SourcePlatform,
+  trustLevel: number,
+  detectedBy: DetectionSource,
+): MemoryDocument {
+  const d = requireDb();
+  const fileHash = hashSnapshot(rawContent);
+  const ts = nowIso();
+
+  const existing = getDocumentByPath(filePath);
+
+  if (existing) {
+    if (existing.file_hash === fileHash) {
+      d.prepare(`UPDATE memory_documents SET last_seen = ? WHERE id = ?`).run(ts, existing.id);
+      return getDocument(existing.id)!;
+    }
+
+    // Modification: re-parse and diff nodes.
+    const oldNodes = getNodesForDocument(existing.id);
+    const oldHashes = new Set(oldNodes.map((n) => n.content_hash));
+
+    d.prepare(
+      `UPDATE memory_documents SET raw_content = ?, file_hash = ?, title = ?, last_modified = ?, last_seen = ?, version = version + 1 WHERE id = ?`,
+    ).run(rawContent, fileHash, parsedDoc.title ?? null, ts, ts, existing.id);
+    d.prepare(`DELETE FROM memory_nodes WHERE document_id = ?`).run(existing.id);
+
+    const newHashes = new Set<string>();
+    const { flagged } = insertDocumentNodes(existing.id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes);
+    updateDocumentSummary(existing.id);
+
+    let added = 0, modified = 0, deleted = 0;
+    for (const h of newHashes) if (!oldHashes.has(h)) added++;
+    for (const h of newHashes) if (oldHashes.has(h)) modified++;
+    for (const h of oldHashes) if (!newHashes.has(h)) deleted++;
+
+    d.prepare(
+      `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
+       VALUES (?, ?, 'modified', ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(randomUUID(), existing.id, existing.file_hash, fileHash, added, modified, deleted, ts, detectedBy);
+
+    void flagged;
+    return getDocument(existing.id)!;
+  }
+
+  // New document.
+  const id = randomUUID();
+  const fileName = basename(filePath);
+  const fileFormat = detectFileFormat(filePath);
+  d.prepare(
+    `INSERT INTO memory_documents (id, file_path, file_name, file_hash, file_format, title, raw_content, source_platform, trust_level, first_seen, last_seen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, filePath, fileName, fileHash, fileFormat, parsedDoc.title ?? null, rawContent, platform, trustLevel, ts, ts);
+
+  const newHashes = new Set<string>();
+  insertDocumentNodes(id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes);
+  updateDocumentSummary(id);
+
+  d.prepare(
+    `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
+     VALUES (?, ?, 'created', NULL, ?, ?, 0, 0, ?, ?)`,
+  ).run(randomUUID(), id, fileHash, newHashes.size, ts, detectedBy);
+
+  return getDocument(id)!;
+}
+
+export function getDocument(id: string): MemoryDocument | null {
+  const row = requireDb().prepare(`SELECT * FROM memory_documents WHERE id = ?`).get(id);
+  return row ? rowToDocument(row as any) : null;
+}
+
+export function getDocumentByPath(filePath: string): MemoryDocument | null {
+  const row = requireDb().prepare(`SELECT * FROM memory_documents WHERE file_path = ? ORDER BY version DESC LIMIT 1`).get(filePath);
+  return row ? rowToDocument(row as any) : null;
+}
+
+export function getAllDocuments(filters?: { status?: MemoryStatus; source_platform?: SourcePlatform }): MemoryDocument[] {
+  const d = requireDb();
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  if (filters?.status) { clauses.push('status = ?'); params.push(filters.status); }
+  if (filters?.source_platform) { clauses.push('source_platform = ?'); params.push(filters.source_platform); }
+  const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
+  const rows = d.prepare(`SELECT * FROM memory_documents${where} ORDER BY last_modified DESC`).all(...params);
+  return (rows as any[]).map(rowToDocument);
+}
+
+export function getNodesForDocument(documentId: string): MemoryNode[] {
+  const rows = requireDb()
+    .prepare(`SELECT * FROM memory_nodes WHERE document_id = ? ORDER BY depth, position`).all(documentId);
+  return (rows as any[]).map(rowToNode);
+}
+
+export function buildNodeTree(flatNodes: MemoryNode[]): MemoryNode[] {
+  const byId = new Map<string, MemoryNode>();
+  for (const n of flatNodes) byId.set(n.id, { ...n, children: [] });
+  const roots: MemoryNode[] = [];
+  for (const n of byId.values()) {
+    if (n.parent_id && byId.has(n.parent_id)) byId.get(n.parent_id)!.children!.push(n);
+    else roots.push(n);
+  }
+  return roots;
+}
+
+export function getDocumentWithNodes(id: string): MemoryDocument | null {
+  const doc = getDocument(id);
+  if (!doc) return null;
+  doc.nodes = buildNodeTree(getNodesForDocument(id));
+  return doc;
+}
+
+export function getDocumentChangelog(documentId: string): DocumentChangelog[] {
+  const rows = requireDb()
+    .prepare(`SELECT * FROM document_changelog WHERE document_id = ? ORDER BY changed_at DESC`).all(documentId);
+  return (rows as any[]).map(rowToDocChangelog);
+}
+
+export function getDocumentStats(): {
+  total_documents: number;
+  total_nodes: number;
+  by_platform: Record<string, number>;
+  flagged_nodes: number;
+  flagged_documents: number;
+} {
+  const d = requireDb();
+  const count = (sql: string): number => {
+    const row = d.prepare(sql).get() as any;
+    return Number(row?.c ?? 0);
+  };
+  const group = d.prepare(`SELECT source_platform AS k, COUNT(*) AS c FROM memory_documents GROUP BY source_platform`).all() as any[];
+  const by_platform: Record<string, number> = {};
+  for (const r of group) by_platform[r.k] = Number(r.c);
+  return {
+    total_documents: count(`SELECT COUNT(*) AS c FROM memory_documents`),
+    total_nodes: count(`SELECT COUNT(*) AS c FROM memory_nodes`),
+    by_platform,
+    flagged_nodes: count(`SELECT COUNT(*) AS c FROM memory_nodes WHERE json_array_length(flags) > 0`),
+    flagged_documents: count(`SELECT COUNT(*) AS c FROM memory_documents WHERE json_array_length(flags_summary) > 0`),
   };
 }

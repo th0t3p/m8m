@@ -2,6 +2,7 @@
 // m8m CLI entry point.
 
 import { Command } from 'commander';
+import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import { initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
@@ -9,9 +10,13 @@ import {
   clearAllMemories,
   createSnapshot,
   flagMemory,
+  getAllDocuments,
   getAllMemories,
   getAllSnapshots,
   getChangelog,
+  getDocumentChangelog,
+  getDocumentStats,
+  getDocumentWithNodes,
   getMemory,
   getSecurityEvents,
   getStats,
@@ -21,7 +26,12 @@ import {
   updateMemoryStatus,
 } from '../core/db.js';
 import { diffMemories, diffSnapshots } from '../core/diff.js';
-import { importBatch, importChatGPTExport, importClaudeExport, importLocalMemoryFile } from '../core/importer.js';
+import {
+  importBatch,
+  importChatGPTExport,
+  importClaudeExport,
+  importFileAsDocument,
+} from '../core/importer.js';
 import { formatDiscovery, isImportablePath, scanForMemoryFiles } from '../core/scanner.js';
 import { startDashboard } from '../dashboard/server.js';
 import { startMcpServer } from '../mcp/server.js';
@@ -35,7 +45,7 @@ import {
   formatStatBlock,
   truncate,
 } from './formatters.js';
-import type { MemoryStatus } from '../core/types.js';
+import type { MemoryNode, MemoryStatus, SourcePlatform } from '../core/types.js';
 
 const program = new Command();
 
@@ -254,12 +264,20 @@ program
   .action((file, opts) => {
     ensureDb();
     const src = String(opts.source ?? '').toLowerCase();
-    let entries;
-    if (src === 'claude' || src === 'claude_web') entries = importClaudeExport(file);
-    else if (src === 'chatgpt' || src === 'chatgpt_web') entries = importChatGPTExport(file);
-    else entries = importLocalMemoryFile(file, opts.platform ?? 'local_file');
-    const result = importBatch(entries, 'manual_import');
-    console.log(`Imported ${result.imported}, updated ${result.updated}, flagged ${result.flagged}`);
+    if (src === 'claude' || src === 'claude_web') {
+      const result = importBatch(importClaudeExport(file), 'manual_import');
+      console.log(`Imported ${result.imported}, updated ${result.updated}, flagged ${result.flagged}`);
+      return;
+    }
+    if (src === 'chatgpt' || src === 'chatgpt_web') {
+      const result = importBatch(importChatGPTExport(file), 'manual_import');
+      console.log(`Imported ${result.imported}, updated ${result.updated}, flagged ${result.flagged}`);
+      return;
+    }
+    // Local file → structured document import.
+    const result = importFileAsDocument(file, (opts.platform ?? 'local_file') as SourcePlatform, 'manual_import');
+    const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
+    console.log(`✓ ${basename(file)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
   });
 
 // --- Scan ---------------------------------------------------------------
@@ -289,21 +307,20 @@ program
       }
     }
 
-    let imported = 0;
-    let updated = 0;
+    let docs = 0;
+    let nodes = 0;
     let flagged = 0;
     for (const f of importable) {
-      const entries = importLocalMemoryFile(f.path, f.platform);
-      const result = importBatch(entries, 'manual_import');
-      const flagNote = result.flagged > 0 ? `, ${result.flagged} flagged ⚠` : '';
-      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — ${result.imported} new, ${result.updated} updated${flagNote}`);
-      imported += result.imported;
-      updated += result.updated;
-      flagged += result.flagged;
+      const result = importFileAsDocument(f.path, f.platform, 'manual_import');
+      const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
+      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
+      docs++;
+      nodes += result.total_nodes;
+      flagged += result.flagged_nodes;
     }
 
     console.log('');
-    console.log(`  Done: ${imported} imported, ${updated} updated, ${flagged} flagged`);
+    console.log(`  Done: ${docs} documents imported, ${nodes} total nodes, ${flagged} flagged`);
     if (flagged > 0) console.log('  Run `m8m audit` to review flagged entries.');
   });
 
@@ -354,6 +371,99 @@ program
     });
     console.log(formatSecurityEvents(events));
   });
+
+// --- Docs ---------------------------------------------------------------
+function renderDocTree(nodes: MemoryNode[], prefix = ''): string[] {
+  const lines: string[] = [];
+  for (const n of nodes) {
+    const label = n.heading ?? truncate(n.content.replace(/\s+/g, ' ').trim(), 48);
+    const flagMark = n.flags.length > 0 ? ' ⚠' : '';
+    const branch = prefix + (n.node_type === 'section' ? '├── ' : '│   ');
+    lines.push(`${prefix}${n.node_type} [${n.node_type}] ${label}${flagMark}`);
+    if (n.children?.length) lines.push(...renderDocTree(n.children, prefix + '    '));
+  }
+  return lines;
+}
+
+const docsCmd = program
+  .command('docs')
+  .description('List imported documents')
+  .action(() => {
+    ensureDb();
+    const docs = getAllDocuments();
+    console.log('');
+    console.log('  Imported Documents');
+    console.log('  ──────────────────');
+    if (!docs.length) {
+      console.log('  (no documents imported yet — run `m8m import <file>` or `m8m scan`)');
+      return;
+    }
+    console.log(`  ${'ID'.padEnd(10)} ${'Platform'.padEnd(13)} ${'Path'.padEnd(30)} ${'Nodes'.padEnd(6)} ${'Flags'.padEnd(6)} v${'Last modified'}`);
+    for (const d of docs) {
+      const nodes = d.nodes ?? [];
+      console.log(`  ${d.id.slice(0, 8).padEnd(10)} ${d.source_platform.padEnd(13)} ${truncate(d.file_path, 28).padEnd(30)} ${String(nodes.length).padEnd(6)} ${String(d.flags_summary.length).padEnd(6)} v${d.version}`);
+    }
+  });
+
+docsCmd.command('show <id>').description('Show document tree with flags').action((id) => {
+  ensureDb();
+  const doc = getDocumentWithNodes(id);
+  if (!doc) {
+    console.error(`Document not found: ${id}`);
+    process.exit(1);
+  }
+  console.log('');
+  console.log(`  ${doc.file_path} (${doc.source_platform}, v${doc.version}, trust: ${doc.trust_level})`);
+  console.log('  ────────────────────────────────────────────────');
+  for (const line of renderDocTree(doc.nodes ?? [])) console.log(`  ${line}`);
+  if (doc.flags_summary.length) console.log(`\n  ${doc.flags_summary.length} node(s) flagged — run \`m8m audit\` for details.`);
+});
+
+docsCmd.command('raw <id>').description('Print the stored raw content').action((id) => {
+  ensureDb();
+  const doc = getAllDocuments().find((d) => d.id === id);
+  if (!doc) {
+    console.error(`Document not found: ${id}`);
+    process.exit(1);
+  }
+  console.log(doc.raw_content);
+});
+
+docsCmd
+  .command('export <id>')
+  .description('Export raw content to file (recovery)')
+  .option('--output <path>', 'Output file path (default: original file path)')
+  .action((id, opts) => {
+    ensureDb();
+    const doc = getAllDocuments().find((d) => d.id === id);
+    if (!doc) {
+      console.error(`Document not found: ${id}`);
+      process.exit(1);
+    }
+    const outPath = opts.output ?? doc.file_path;
+    writeFileSync(outPath, doc.raw_content, 'utf8');
+    console.log(`Exported ${doc.file_name} → ${outPath}`);
+  });
+
+docsCmd.command('diff <id>').description('Show document change history').action((id) => {
+  ensureDb();
+  const doc = getAllDocuments().find((d) => d.id === id);
+  if (!doc) {
+    console.error(`Document not found: ${id}`);
+    process.exit(1);
+  }
+  const cl = getDocumentChangelog(id);
+  console.log('');
+  console.log(`  Change history — ${doc.file_path}`);
+  console.log('  ───────────────────────────────');
+  if (!cl.length) {
+    console.log('  (no changes recorded)');
+    return;
+  }
+  for (const c of cl) {
+    console.log(`  ${c.changed_at}  ${c.change_type.padEnd(8)}  +${c.nodes_added} ~${c.nodes_modified} -${c.nodes_deleted}  (${c.detected_by})`);
+  }
+});
 
 // --- Watch --------------------------------------------------------------
 program
