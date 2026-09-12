@@ -1125,10 +1125,15 @@ function renderSnapshotRollback(panel, snapshot, diff) {
 
 async function renderDiff() {
   loading(3);
-  const [data, snapshots] = await Promise.all([
+  // The snapshot list is optional: a dashboard process from before the rollback
+  // routes existed would 404 here, and that must not take down the whole view.
+  const [data, snapshotFeed] = await Promise.all([
     load('diff', '/api/diff'),
-    load('snapshots', '/api/snapshots'),
+    load('snapshots', '/api/snapshots')
+      .then((list) => ({ ok: true, list }))
+      .catch((error) => ({ ok: false, error })),
   ]);
+  const snapshots = snapshotFeed.ok ? snapshotFeed.list : [];
   const fileChanges = data.file_changes || [];
   $app.innerHTML = '';
 
@@ -1186,10 +1191,10 @@ async function renderDiff() {
     const agentCount = added.length + modified.length + deleted.length;
     changesButton.querySelector('.n').textContent = String(agentCount);
     filesButton.querySelector('.n').textContent = String(fileRows.length);
-    snapsButton.querySelector('.n').textContent = String(snapshots.length);
+    snapsButton.querySelector('.n').textContent = snapshotFeed.ok ? String(snapshots.length) : '—';
     changesButton.hidden = agentCount === 0;
     filesButton.hidden = fileRows.length === 0;
-    snapsButton.hidden = snapshots.length === 0;
+    snapsButton.hidden = snapshotFeed.ok && snapshots.length === 0;
     agentBlock = null;
     fileBlock = null;
     snapBlock = null;
@@ -1228,6 +1233,11 @@ async function renderDiff() {
       snapBlock.appendChild(el('h2', { class: 'section-title', text: `Snapshots (${snapshots.length})` }));
       snapBlock.appendChild(el('div', { class: 'meta', text: 'Rolling back rewrites agent memories to match a snapshot. File memories keep their own history.' }));
       for (const snapshot of snapshots) snapBlock.appendChild(snapshotRow(snapshot));
+      listHost.appendChild(snapBlock);
+    } else if (!snapshotFeed.ok) {
+      snapBlock = el('section', { class: 'mem-section' });
+      snapBlock.appendChild(el('h2', { class: 'section-title', text: 'Snapshots' }));
+      snapBlock.appendChild(el('div', { class: 'rollback-note', text: `Can't list snapshots — ${snapshotFeed.error.message}. A dashboard process started before the rollback routes existed will keep returning 404 for them; restart the dashboard and reload.` }));
       listHost.appendChild(snapBlock);
     }
 
