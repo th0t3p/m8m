@@ -228,13 +228,13 @@ async function act(path, body, message) {
 
 /* --------------------------------------------------------------- timeline */
 
-function timelineRow(change, byId) {
+function timelineRow(change) {
   const kind = { created: 'added', modified: 'modified', deleted: 'deleted', status_changed: 'status' }[change.change_type] || 'modified';
-  const memory = change.memory_id ? byId.get(change.memory_id) : null;
+  const isFile = change.kind === 'file';
   const variant = kind === 'added' ? 'ok' : kind === 'deleted' ? 'crit' : kind === 'status' ? '' : 'warn';
-  const content = change.change_type === 'deleted'
-    ? change.old_content
-    : change.new_content || change.old_content || memory?.content;
+  const content = isFile
+    ? (change.file_name || change.file_path || 'Memory file')
+    : (change.change_type === 'deleted' ? change.old_content : change.content);
 
   const row = el('div', { class: `tl-row ${kind}` },
     el('div', { class: 'tl-time', text: clockTime(change.changed_at), title: new Date(change.changed_at).toLocaleString() }),
@@ -243,18 +243,27 @@ function timelineRow(change, byId) {
 
   const body = el('div', { class: 'tl-body' });
   body.appendChild(el('div', { class: 'tl-content', text: truncate(content, 240) || 'Status change (content unchanged)' }));
-  if (change.change_type === 'modified' && change.old_content) {
+  if (!isFile && change.change_type === 'modified' && change.old_content) {
     body.appendChild(el('div', { class: 'tl-was', text: truncate(change.old_content, 160) }));
   }
 
   const meta = el('div', { class: 'tl-meta' });
   meta.appendChild(badge(humanize(change.change_type, CHANGE), variant));
-  if (change.change_type === 'status_changed') {
-    meta.appendChild(badge(`${statusLabel(change.old_status)} → ${statusLabel(change.new_status)}`, 'accent'));
+  if (isFile) {
+    meta.appendChild(badge('file', 'accent'));
+    meta.appendChild(badge(change.provider || platform(change.source_platform)));
+    if (change.nodes_added || change.nodes_modified || change.nodes_deleted) {
+      meta.appendChild(badge(`+${change.nodes_added} ~${change.nodes_modified} -${change.nodes_deleted}`, 'mono', { mono: true }));
+    }
+  } else {
+    if (change.change_type === 'status_changed') {
+      meta.appendChild(badge(`${statusLabel(change.old_status)} → ${statusLabel(change.new_status)}`, 'accent'));
+    }
+    meta.appendChild(badge(platform(change.source_platform)));
   }
   meta.appendChild(badge(detector(change.detected_by)));
-  if (memory) meta.appendChild(badge(platform(memory.source_platform)));
-  meta.appendChild(el('span', { class: 'id', text: change.memory_id ? change.memory_id.slice(0, 8) : '—', title: change.memory_id || '' }));
+  const refId = change.memory_id || change.document_id || '';
+  meta.appendChild(el('span', { class: 'id', text: refId ? refId.slice(0, 8) : '—', title: refId }));
   body.appendChild(meta);
 
   row.appendChild(body);
@@ -263,11 +272,7 @@ function timelineRow(change, byId) {
 
 async function renderTimeline() {
   loading(5);
-  const [changes, memories] = await Promise.all([
-    load('changelog', '/api/changelog'),
-    load('memories', '/api/memories'),
-  ]);
-  const byId = new Map(memories.map((m) => [m.id, m]));
+  const changes = await load('timeline', '/api/timeline');
   $app.innerHTML = '';
 
   $app.appendChild(pageHead('Timeline', changes.length ? `${changes.length} memory changes, newest first` : 'Nothing captured yet', [
@@ -313,7 +318,7 @@ async function renderTimeline() {
         el('span', { class: 'rule' }),
       ));
     }
-    $app.appendChild(timelineRow(change, byId));
+    $app.appendChild(timelineRow(change));
   }
 }
 

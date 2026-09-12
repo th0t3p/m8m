@@ -14,6 +14,7 @@ import {
   getNodesForDocument,
   getSecurityEvents,
   getStats,
+  getTimeline,
   initDatabase,
   resolveSecurityEvent,
   updateMemoryStatus,
@@ -149,6 +150,17 @@ describe('db — documents', () => {
     expect(doc.raw_content).toBe('# Intro\n\nHello world');
     expect(getNodesForDocument(doc.id)).toHaveLength(2);
     expect(getDocumentChangelog(doc.id)).toHaveLength(1);
+  });
+
+  it('getTimeline includes file-memory changes', () => {
+    const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'note', children: [] }] };
+    upsertDocument('/tmp/t.md', 'note', parsed, 'local_file', 'Codex', 0.5, 'cli');
+    const timeline = getTimeline();
+    expect(timeline).toHaveLength(1);
+    expect(timeline[0].kind).toBe('file');
+    expect(timeline[0].file_name).toBe('t.md');
+    expect(timeline[0].provider).toBe('Codex');
+    expect(timeline[0].nodes_added).toBe(1);
   });
 
   it('upsertDocument with same hash only updates last_seen', () => {

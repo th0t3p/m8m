@@ -11,6 +11,7 @@ import { detectFileFormat } from '../watcher/parsers.js';
 import type {
   ChangelogEntry,
   ChangelogFilters,
+  ChangeType,
   DetectionSource,
   DocumentChangelog,
   EventSeverity,
@@ -30,6 +31,7 @@ import type {
   Snapshot,
   SourcePlatform,
   SourceType,
+  TimelineEvent,
 } from './types.js';
 import { DEFAULT_TRUST_LEVELS } from './types.js';
 
@@ -968,6 +970,56 @@ export function getDocumentChangelog(documentId: string): DocumentChangelog[] {
   const rows = requireDb()
     .prepare(`SELECT * FROM document_changelog WHERE document_id = ? ORDER BY changed_at DESC`).all(documentId);
   return (rows as any[]).map(rowToDocChangelog);
+}
+
+/** Merge agent-memory changes and file-memory changes into one timeline. */
+export function getTimeline(): TimelineEvent[] {
+  const d = requireDb();
+
+  const agentRows = d.prepare(
+    `SELECT mc.*, me.source_platform AS entry_platform
+     FROM memory_changelog mc
+     LEFT JOIN memory_entries me ON me.id = mc.memory_id`,
+  ).all() as any[];
+  const agentEvents: TimelineEvent[] = agentRows.map((r) => {
+    const c = rowToChangelog(r);
+    return {
+      kind: 'agent',
+      id: c.id,
+      changed_at: c.changed_at,
+      change_type: c.change_type,
+      detected_by: c.detected_by,
+      memory_id: c.memory_id,
+      content: c.new_content ?? c.old_content,
+      old_content: c.old_content,
+      old_status: c.old_status,
+      new_status: c.new_status,
+      source_platform: (r.entry_platform ?? 'unknown') as SourcePlatform,
+    };
+  });
+
+  const fileRows = d.prepare(
+    `SELECT dc.*, md.file_name, md.file_path, md.source_platform, md.provider
+     FROM document_changelog dc
+     LEFT JOIN memory_documents md ON md.id = dc.document_id`,
+  ).all() as any[];
+  const fileEvents: TimelineEvent[] = fileRows.map((r) => ({
+    kind: 'file',
+    id: r.id,
+    changed_at: r.changed_at,
+    change_type: r.change_type as ChangeType,
+    detected_by: r.detected_by as DetectionSource,
+    document_id: r.document_id,
+    file_name: r.file_name ?? null,
+    file_path: r.file_path ?? null,
+    source_platform: (r.source_platform ?? 'unknown') as SourcePlatform,
+    provider: r.provider ?? null,
+    nodes_added: Number(r.nodes_added ?? 0),
+    nodes_modified: Number(r.nodes_modified ?? 0),
+    nodes_deleted: Number(r.nodes_deleted ?? 0),
+  }));
+
+  return [...agentEvents, ...fileEvents].sort((a, b) => b.changed_at.localeCompare(a.changed_at));
 }
 
 export function getDocumentStats(): {

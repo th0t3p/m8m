@@ -210,6 +210,31 @@ export interface DocumentChangelog {
   detected_by: DetectionSource;
 }
 
+/** A unified timeline event: agent-memory changes or file-memory changes. */
+export interface TimelineEvent {
+  kind: 'agent' | 'file';
+  id: string;
+  changed_at: string;
+  change_type: ChangeType;
+  detected_by: DetectionSource;
+  // agent memory
+  memory_id?: string;
+  content?: string;
+  old_content?: string;
+  old_status?: string;
+  new_status?: string;
+  // file memory
+  document_id?: string;
+  file_name?: string | null;
+  file_path?: string | null;
+  provider?: string | null;
+  nodes_added?: number;
+  nodes_modified?: number;
+  nodes_deleted?: number;
+  // shared provenance
+  source_platform?: SourcePlatform;
+}
+
 export interface ParsedNode {
   node_type: NodeType;
   heading?: string;

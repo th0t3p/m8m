@@ -15,6 +15,7 @@ import {
   getMemory,
   getSecurityEvents,
   getStats,
+  getTimeline,
   resolveSecurityEvent,
   unflagMemory,
   updateMemoryStatus,
@@ -106,6 +107,10 @@ export function registerApi(): Router {
         change_type: change_type as any,
       }),
     );
+  });
+
+  router.get('/api/timeline', (_req, res) => {
+    res.json(getTimeline());
   });
 
   router.get('/api/diff', (req, res) => {
