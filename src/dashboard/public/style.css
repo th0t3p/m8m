@@ -597,13 +597,22 @@ tr:hover td { background: var(--surface); }
 .snap-row:hover { background: var(--surface); }
 .snap-row .row-actions { margin-left: auto; }
 
-.rollback-panel {
+.rollback-panel,
+.snapshot-panel {
   margin: var(--sp-3) 0 var(--sp-4);
   padding: var(--sp-4);
   border: 1px solid var(--border-strong);
   border-left: 2px solid var(--signal-crit);
   border-radius: var(--r-lg);
   background: var(--surface);
+}
+.snapshot-panel { border-left-color: var(--border-strong); }
+.snap-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: 4px;
 }
 .rollback-head {
   display: flex;

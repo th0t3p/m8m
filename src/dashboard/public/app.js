@@ -1019,6 +1019,11 @@ function snapshotRow(snapshot) {
     el('span', { class: 'meta', text: timeAgo(snapshot.taken_at), title: new Date(snapshot.taken_at).toLocaleString() }),
     el('div', { class: 'row-actions' },
       el('button', {
+        class: 'btn ghost',
+        type: 'button',
+        onclick: (event) => openSnapshotPreview(snapshot, event.currentTarget),
+      }, 'Preview…'),
+      el('button', {
         class: 'btn danger',
         type: 'button',
         onclick: (event) => openSnapshotRollback(snapshot, event.currentTarget),
@@ -1027,13 +1032,95 @@ function snapshotRow(snapshot) {
   );
 }
 
+// Browse what a snapshot holds. GET /api/snapshots already ships the captured
+// entries and documents, so this needs no extra request and changes nothing.
+function openSnapshotPreview(snapshot, button) {
+  const row = button.closest('.snap-row');
+  const open = row && row.nextElementSibling;
+  if (open && open.classList.contains('snapshot-panel')) { open.remove(); return; }
+  for (const stale of document.querySelectorAll('.rollback-panel, .snapshot-panel')) stale.remove();
+
+  const panel = el('div', { class: 'snapshot-panel' });
+  renderSnapshotPreview(panel, snapshot);
+  row.after(panel);
+}
+
+function renderSnapshotPreview(panel, snapshot) {
+  const entries = snapshot.snapshot_data ?? [];
+  const docs = snapshot.documents_data;
+
+  panel.appendChild(el('div', { class: 'rollback-head' },
+    icon('clock', 16),
+    el('span', { class: 'title', text: `Snapshot ${snapshot.id.slice(0, 8)}` }),
+    badge(snapshot.platform || 'manual'),
+    el('span', { class: 'meta', text: `${entries.length} ${entries.length === 1 ? 'memory' : 'memories'}` }),
+    el('span', { class: 'meta', text: timeAgo(snapshot.taken_at), title: new Date(snapshot.taken_at).toLocaleString() }),
+  ));
+  panel.appendChild(el('div', { class: 'rollback-note', text: 'What the store held at this point. Nothing changes until you confirm a rollback.' }));
+
+  panel.appendChild(el('div', { class: 'rollback-group', text: `Agent memories (${entries.length})` }));
+  if (entries.length) {
+    const list = el('div', { class: 'bucket-list' });
+    for (const entry of entries) {
+      list.appendChild(el('div', { class: 'bucket-item' },
+        contentBlock(entry.content, { lines: 2, query: ui.query }),
+        el('div', { class: 'snap-meta' },
+          badge(platform(entry.source_platform)),
+          el('span', { class: 'meta', text: `trust ${Number(entry.trust_level ?? 0).toFixed(2)}` }),
+          entry.status && entry.status !== 'active'
+            ? badge(statusLabel(entry.status), entry.status === 'quarantined' ? 'crit' : '')
+            : null,
+          el('span', { class: 'id', text: entry.id.slice(0, 8), title: entry.id }),
+        ),
+      ));
+    }
+    panel.appendChild(list);
+  } else {
+    panel.appendChild(el('div', { class: 'rollback-note', text: 'No agent memories were captured in this snapshot.' }));
+  }
+
+  panel.appendChild(el('div', { class: 'rollback-group', text: 'File memories' }));
+  if (!docs) {
+    panel.appendChild(el('div', { class: 'rollback-note', text: 'This snapshot predates file-memory capture, so it holds no record of them — rolling back to it would remove every file memory in the store. The rollback preview lists exactly what it would remove.' }));
+  } else if (!docs.length) {
+    panel.appendChild(el('div', { class: 'rollback-note', text: 'No file memories were captured in this snapshot.' }));
+  } else {
+    const list = el('div', { class: 'bucket-list' });
+    for (const doc of docs) {
+      list.appendChild(el('div', { class: 'bucket-item' },
+        el('div', { class: 'cell-content', text: doc.file_name }),
+        el('div', { class: 'snap-meta' },
+          el('span', { class: 'meta', text: doc.file_path }),
+          badge(`${doc.node_count ?? 0} nodes`, 'mono', { mono: true }),
+          badge(`v${doc.version}`, 'mono', { mono: true }),
+        ),
+      ));
+    }
+    panel.appendChild(list);
+  }
+
+  panel.appendChild(el('div', { class: 'rollback-actions' },
+    el('button', {
+      class: 'btn danger',
+      type: 'button',
+      onclick: () => {
+        const row = panel.previousElementSibling;
+        const rollbackButton = row && row.querySelector('.row-actions .btn.danger');
+        panel.remove();
+        if (rollbackButton) openSnapshotRollback(snapshot, rollbackButton);
+      },
+    }, 'Roll back to this snapshot'),
+    el('button', { class: 'btn ghost', type: 'button', text: 'Close', onclick: () => panel.remove() }),
+  ));
+}
+
 // Preview first, confirm second: rolling back rewrites the agent memory store,
 // so the destructive call never happens straight off a single click.
 async function openSnapshotRollback(snapshot, button) {
   const row = button.closest('.snap-row');
   const open = row && row.nextElementSibling;
   if (open && open.classList.contains('rollback-panel')) { open.remove(); return; }
-  for (const stale of document.querySelectorAll('.rollback-panel')) stale.remove();
+  for (const stale of document.querySelectorAll('.rollback-panel, .snapshot-panel')) stale.remove();
 
   const panel = el('div', { class: 'rollback-panel' });
   panel.appendChild(el('div', { class: 'meta', text: 'Building preview…' }));
