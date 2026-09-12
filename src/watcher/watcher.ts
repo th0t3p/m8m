@@ -77,11 +77,11 @@ function handleFileChange(path: string, platform: string): void {
   const result = importFileAsDocument(path, null, platform as SourcePlatform, 'file_watcher');
 
   updateWatchTarget(path, hash);
-  console.log(`[m8m watcher] ${path}: 1 memory file, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
+  console.error(`[m8m watcher] ${path}: 1 memory file, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
 }
 
 /** Start watching configured memory files for changes. Long-running. */
-export async function startWatcher(config: M8mConfig): Promise<void> {
+export async function startWatcher(config: M8mConfig): Promise<() => void> {
   const paths = new Set<string>();
   for (const p of [...DEFAULT_WATCH_PATHS, ...HOME_WATCH_PATHS, ...config.watch_paths]) {
     paths.add(resolve(expandHome(p)));
@@ -102,8 +102,8 @@ export async function startWatcher(config: M8mConfig): Promise<void> {
 
   const existingPaths = [...paths].filter((p) => existsSync(p));
   if (existingPaths.length === 0) {
-    console.log('[m8m watcher] No watch paths exist. Nothing to monitor.');
-    return;
+    console.error('[m8m watcher] No watch paths exist. Nothing to monitor.');
+    return () => {};
   }
 
   for (const p of existingPaths) {
@@ -122,5 +122,8 @@ export async function startWatcher(config: M8mConfig): Promise<void> {
   const watcher = chokidar.watch(existingPaths, { ignoreInitial: true, persistent: true });
   watcher.on('change', (p) => handleFileChange(p, inferPlatform(p)));
   watcher.on('add', (p) => handleFileChange(p, inferPlatform(p)));
-  console.log(`[m8m watcher] Watching ${existingPaths.length} path(s). Ctrl-C to stop.`);
+  console.error(`[m8m watcher] Watching ${existingPaths.length} path(s). Ctrl-C to stop.`);
+  return () => {
+    void watcher.close();
+  };
 }

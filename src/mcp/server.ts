@@ -6,6 +6,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig } from '../core/config.js';
 import { initDatabase } from '../core/db.js';
 import { VERSION } from '../version.js';
+import { startWatcher } from '../watcher/watcher.js';
 import { TOOLS } from './tools.js';
 
 function wrapResult(result: unknown): { content: { type: 'text'; text: string }[] } {
@@ -15,6 +16,17 @@ function wrapResult(result: unknown): { content: { type: 'text'; text: string }[
 export async function startMcpServer(): Promise<void> {
   const config = loadConfig();
   initDatabase(config.db_path);
+
+  // The MCP server already runs as a long-lived daemon (kept alive by its
+  // client), so run the file watcher in-process to re-import memory files as
+  // they change — no separate `m8m watch` needed. Watcher logs go to stderr;
+  // stdout stays clean for the JSON-RPC transport.
+  let closeWatcher = (): void => {};
+  try {
+    closeWatcher = await startWatcher(config);
+  } catch (err) {
+    console.error('[m8m watcher] failed to start:', err);
+  }
 
   const server = new McpServer({ name: 'm8m', version: VERSION });
   for (const tool of TOOLS) {
@@ -36,6 +48,17 @@ export async function startMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // When the client disconnects (stdin closes), stop the watcher so the
+  // process exits cleanly instead of lingering on chokidar's open handles.
+  let shutdown = false;
+  const onShutdown = (): void => {
+    if (shutdown) return;
+    shutdown = true;
+    closeWatcher();
+  };
+  process.stdin.on('end', onShutdown);
+  process.stdin.on('close', onShutdown);
 }
 
 const isMain =

@@ -338,6 +338,32 @@ select.select { padding-left: var(--sp-3); min-width: 0; cursor: pointer; }
 .badge.accent::before { background: var(--accent-soft); }
 .badge.mono { font-family: var(--mono); font-size: 10.5px; letter-spacing: -0.01em; }
 
+/* Snippets are clamped visually, never cut in the data: the whole string stays
+   in the DOM and any block that overflows gets a "Show full content" control
+   (see decorateClamps in app.js). */
+.content-block { display: flex; flex-direction: column; align-items: flex-start; }
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--clamp-lines, 3);
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp.expanded { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.toggle {
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--dur) var(--ease);
+}
+.toggle:hover { color: var(--text); }
+
 .meta { color: var(--text-dim); font-size: var(--fs-xs); }
 .id {
   font-family: var(--mono);
