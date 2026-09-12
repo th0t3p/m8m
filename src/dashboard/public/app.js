@@ -82,7 +82,7 @@ function emptyState(iconName, title, hint, action) {
 function stat(value, label, variant = '') {
   return el('div', { class: `stat ${variant}`.trim() },
     el('div', { class: 'value', text: value }),
-    el('div', { class: 'label', text: label }),
+    el('div', { class: 'label' }, variant ? el('span', { class: 'mark' }) : null, label),
   );
 }
 
