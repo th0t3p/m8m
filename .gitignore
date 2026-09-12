@@ -11,3 +11,4 @@ coverage/
 *.log
 .env
 .env.local
+DEVLOG.md
