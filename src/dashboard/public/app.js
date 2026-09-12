@@ -674,31 +674,41 @@ function documentCard(d) {
 
   const body = el('div', { class: 'doc-body' });
   const actions = el('div', { class: 'row', style: 'margin-top:8px' },
-    el('button', { class: 'btn ghost', onclick: () => toggleDocTree(d.id, body) }, 'Tree'),
-    el('button', { class: 'btn ghost', onclick: () => toggleDocRaw(d.id, body) }, 'Raw'),
+    el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'tree', e.currentTarget) }, 'Tree'),
+    el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'raw', e.currentTarget) }, 'Raw'),
   );
   card.appendChild(actions);
   card.appendChild(body);
   return card;
 }
 
-async function toggleDocTree(id, body) {
-  body.innerHTML = '';
-  try {
-    const doc = await api(`/api/documents/${id}`);
-    body.appendChild(renderDocTree(doc.nodes || []));
-  } catch (err) {
-    body.appendChild(el('div', { class: 'meta', text: `Could not load tree: ${err.message}` }));
+async function toggleDocView(d, body, kind, btn) {
+  // Clicking the currently-open view hides it; clicking the other switches.
+  if (body.dataset.view === kind) {
+    body.innerHTML = '';
+    delete body.dataset.view;
+    btn.classList.remove('active');
+    return;
   }
-}
-
-async function toggleDocRaw(id, body) {
   body.innerHTML = '';
-  try {
-    const raw = await apiText(`/api/documents/${id}/raw`);
-    body.appendChild(el('pre', { class: 'doc-raw', text: raw }));
-  } catch (err) {
-    body.appendChild(el('div', { class: 'meta', text: `Could not load raw: ${err.message}` }));
+  body.dataset.view = kind;
+  for (const b of btn.parentElement.querySelectorAll('.doc-toggle')) b.classList.remove('active');
+  btn.classList.add('active');
+
+  if (kind === 'tree') {
+    try {
+      const doc = await api(`/api/documents/${d.id}`);
+      body.appendChild(renderDocTree(doc.nodes || []));
+    } catch (err) {
+      body.appendChild(el('div', { class: 'meta', text: `Could not load tree: ${err.message}` }));
+    }
+  } else {
+    try {
+      const raw = await apiText(`/api/documents/${d.id}/raw`);
+      body.appendChild(el('pre', { class: 'doc-raw', text: raw }));
+    } catch (err) {
+      body.appendChild(el('div', { class: 'meta', text: `Could not load raw: ${err.message}` }));
+    }
   }
 }
 

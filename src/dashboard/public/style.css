@@ -233,6 +233,7 @@ body {
 
 .btn.ghost { background: transparent; border-color: var(--border); color: var(--text-dim); }
 .btn.ghost:hover { background: var(--elevated); color: var(--text); }
+.btn.ghost.active { background: var(--elevated); border-color: var(--accent-soft); color: var(--text); }
 
 .btn.danger { background: transparent; border-color: var(--border); color: var(--signal-crit-text); }
 .btn.danger:hover { background: #c45c5c1f; border-color: var(--signal-crit); }
