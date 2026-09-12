@@ -730,6 +730,21 @@ function renderDocTree(nodes) {
 /* --------------------------------------------------------------- bootstrap */
 
 const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff, documents: renderDocuments };
+const DEFAULT_VIEW = 'timeline';
+
+// Hash-based routing: each tab maps to a URL path (#/timeline, #/memories, …)
+// so a view can be opened directly and browser back/forward works.
+function viewFromHash() {
+  const key = location.hash.replace(/^#\/?/, '');
+  return views[key] ? key : DEFAULT_VIEW;
+}
+
+function activateTab(key) {
+  document.querySelectorAll('.tab').forEach((b) => {
+    if (b.dataset.view === key) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+}
 
 function refresh() {
   const active = document.querySelector('.tab[aria-current="page"]') || document.querySelector('.tab');
@@ -740,12 +755,22 @@ function refresh() {
     .finally(() => $app.removeAttribute('aria-busy'));
 }
 
-document.querySelectorAll('.tab').forEach((button) => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((b) => b.removeAttribute('aria-current'));
-    button.setAttribute('aria-current', 'page');
-    refresh();
+function renderRoute() {
+  activateTab(viewFromHash());
+  refresh();
+}
+
+// Tab links use native hash navigation (href="#/…"), which fires `hashchange`;
+// only a re-click on the already-active route needs manual rendering.
+document.querySelectorAll('.tab').forEach((link) => {
+  link.addEventListener('click', () => {
+    const key = link.dataset.view;
+    if (location.hash === `#/${key}` || location.hash === `#${key}`) renderRoute();
   });
 });
 
-refresh();
+window.addEventListener('hashchange', renderRoute);
+
+// Initial load: honor the URL hash, normalizing an empty one to #/timeline.
+if (!location.hash) history.replaceState(null, '', `#/${DEFAULT_VIEW}`);
+renderRoute();

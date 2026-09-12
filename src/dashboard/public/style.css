@@ -140,6 +140,7 @@ body {
   color: var(--text-dim);
   font: inherit;
   font-size: var(--fs-sm);
+  text-decoration: none;
   cursor: pointer;
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
     border-color var(--dur) var(--ease);
