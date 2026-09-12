@@ -664,13 +664,12 @@ async function renderDocuments() {
 
 function documentCard(d) {
   const card = el('div', { class: 'card doc-card' });
-  const head = el('div', { class: 'row' });
-  head.appendChild(icon('file'));
-  head.appendChild(el('strong', { text: d.file_name }));
-  head.appendChild(badge(platform(d.source_platform), 'accent'));
-  head.appendChild(badge(`v${d.version}`, 'mono', { mono: true }));
-  if (d.flags_summary && d.flags_summary.length) head.appendChild(badge(`${d.flags_summary.length} flagged`, 'warn'));
-  card.appendChild(head);
+  const titleLine = el('div', { class: 'doc-titleline' });
+  titleLine.appendChild(el('strong', { text: d.file_name }));
+  const meta = [platform(d.source_platform), `v${d.version}`];
+  if (d.flags_summary && d.flags_summary.length) meta.push(`${d.flags_summary.length} flagged`);
+  titleLine.appendChild(el('span', { class: 'meta', text: meta.join(' · ') }));
+  card.appendChild(titleLine);
   card.appendChild(el('div', { class: 'meta', text: `${d.file_path} · ${timeAgo(d.last_modified || d.last_seen)}` }));
 
   const body = el('div', { class: 'doc-body' });
