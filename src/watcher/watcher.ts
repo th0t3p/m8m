@@ -58,7 +58,7 @@ function handleFileChange(path: string, platform: string): void {
   if (target?.last_hash === hash) return;
 
   const format = detectFileFormat(path);
-  const parsed = format === 'json' ? parseJsonMemoryFile(content) : parseMarkdownMemoryFile(content);
+  const parsed = format === 'json' ? parseJsonMemoryFile(content) : parseMarkdownMemoryFile(content, path);
   const base = basename(path);
 
   const newKeys = new Set<string>();

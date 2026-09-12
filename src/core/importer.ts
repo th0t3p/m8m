@@ -5,7 +5,14 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { getAllMemories, upsertMemory } from './db.js';
 import { hashContent } from './hasher.js';
-import { detectFileFormat, parseJsonMemoryFile, parseMarkdownMemoryFile } from '../watcher/parsers.js';
+import {
+  detectFileFormat,
+  parseJsonConfig,
+  parseJsonMemoryFile,
+  parseMarkdownMemoryFile,
+  parseTomlConfig,
+  parseYamlConfig,
+} from '../watcher/parsers.js';
 import type {
   DetectionSource,
   ImportResult,
@@ -105,13 +112,24 @@ export function importChatGPTExport(filePath: string): MemoryEntry[] {
   );
 }
 
-/** Parse a local memory file (markdown or JSON) into memory candidates. */
+/** Parse a local memory file (markdown, JSON, TOML, or YAML) into memory candidates. */
 export function importLocalMemoryFile(filePath: string, platform: string): MemoryEntry[] {
   const format = detectFileFormat(filePath);
   const text = readText(filePath);
   let parsed: { content: string; line_number?: number; section?: string; raw_text: string }[];
-  if (format === 'json') parsed = parseJsonMemoryFile(text);
-  else parsed = parseMarkdownMemoryFile(text);
+  switch (format) {
+    case 'json':
+      parsed = parseJsonConfig(text);
+      break;
+    case 'toml':
+      parsed = parseTomlConfig(text);
+      break;
+    case 'yaml':
+      parsed = parseYamlConfig(text);
+      break;
+    default:
+      parsed = parseMarkdownMemoryFile(text, filePath);
+  }
 
   const srcPlatform = (platform || 'local_file') as SourcePlatform;
   return parsed.map((p, i) =>
