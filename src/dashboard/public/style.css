@@ -371,6 +371,14 @@ select.select { padding-left: var(--sp-3); min-width: 0; cursor: pointer; }
 }
 .toggle:hover { color: var(--text); }
 
+/* Search hits: brightness rather than a new hue (see the palette rule). */
+mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: var(--raised);
+  color: var(--text);
+}
+
 .meta { color: var(--text-dim); font-size: var(--fs-xs); }
 .id {
   font-family: var(--mono);

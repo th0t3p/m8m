@@ -126,10 +126,36 @@ const categoryLabel = (c) => humanize(c, CATEGORY);
 // Content is presented as a snippet by default, but the full string always stays
 // in the DOM: the clamp is visual (CSS line-clamp), so nothing is ever cut in the
 // data and the expanded state keeps the original line breaks.
-function contentBlock(text, { class: cls = 'cell-content', lines = 3 } = {}) {
+function contentBlock(text, { class: cls = 'cell-content', lines = 3, query = '' } = {}) {
   const body = el('div', { class: `${cls} clamp`, style: `--clamp-lines:${lines}` });
-  body.textContent = String(text ?? '').trim() || '—';
+  const value = String(text ?? '').trim();
+  body.appendChild(value ? highlightMatches(value, query) : document.createTextNode('—'));
   return el('div', { class: 'content-block' }, body);
+}
+
+// Wraps query hits in <mark>. Built from text nodes rather than innerHTML, so
+// memory content stays inert — it is untrusted input.
+function highlightMatches(text, query) {
+  const value = String(text ?? '');
+  const fragment = document.createDocumentFragment();
+  const needle = String(query ?? '').trim().toLowerCase();
+  if (!needle) {
+    fragment.appendChild(document.createTextNode(value));
+    return fragment;
+  }
+  const haystack = value.toLowerCase();
+  let cursor = 0;
+  let found = haystack.indexOf(needle);
+  while (found !== -1) {
+    if (found > cursor) fragment.appendChild(document.createTextNode(value.slice(cursor, found)));
+    const mark = document.createElement('mark');
+    mark.textContent = value.slice(found, found + needle.length);
+    fragment.appendChild(mark);
+    cursor = found + needle.length;
+    found = haystack.indexOf(needle, cursor);
+  }
+  if (cursor < value.length) fragment.appendChild(document.createTextNode(value.slice(cursor)));
+  return fragment;
 }
 
 // Runs after a view renders: gives every clamped block that actually overflows a
@@ -138,16 +164,22 @@ function decorateClamps(root) {
   for (const node of root.querySelectorAll('.clamp:not([data-measured])')) {
     node.setAttribute('data-measured', '1');
     if (node.scrollHeight <= node.clientHeight + 2) continue;
+    // A search hit below the visible snippet would be worse than useless, so
+    // reveal it — the control stays, so it can be collapsed again.
+    const nodeRect = node.getBoundingClientRect();
+    const hiddenMatch = [...node.querySelectorAll('mark')]
+      .some((mark) => mark.getBoundingClientRect().bottom > nodeRect.bottom + 1);
     const toggle = el('button', {
       class: 'toggle',
       type: 'button',
-      'aria-expanded': 'false',
+      'aria-expanded': String(hiddenMatch),
       onclick: () => {
         const expanded = node.classList.toggle('expanded');
         toggle.setAttribute('aria-expanded', String(expanded));
         toggle.textContent = expanded ? 'Show less' : 'Show full content';
       },
-    }, 'Show full content');
+    }, hiddenMatch ? 'Show less' : 'Show full content');
+    if (hiddenMatch) node.classList.add('expanded');
     node.after(toggle);
   }
 }
@@ -428,9 +460,9 @@ function memoriesTable(rows) {
   const tbody = el('tbody');
   for (const m of rows) {
     const content = el('td', {},
-      contentBlock(m.content, { class: 'cell-content', lines: 2 }),
+      contentBlock(m.content, { class: 'cell-content', lines: 2, query: ui.memories.q }),
       el('div', { class: 'cell-sub' },
-        el('span', { class: 'id', text: m.id.slice(0, 8), title: m.id }),
+        el('span', { class: 'id', title: m.id }, highlightMatches(m.id.slice(0, 8), ui.memories.q)),
         el('span', { class: 'meta', text: `${categoryLabel(m.category)} · v${m.version} · seen ${timeAgo(m.last_seen)}` }),
       ),
     );
@@ -505,6 +537,8 @@ async function renderMemories() {
       'aria-label': 'Search agent memories',
       value: ui.memories.q,
       oninput: (event) => { ui.memories.q = event.target.value; renderList(); },
+      // the native clear (×) fires `search` in some browsers, `input` in others
+      onsearch: (event) => { ui.memories.q = event.target.value; renderList(); },
     });
     search.appendChild(input);
     toolbar.appendChild(search);
