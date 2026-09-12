@@ -715,3 +715,15 @@ tr:hover td { background: var(--surface); }
   white-space: pre;
   margin: 0;
 }
+
+/* Memories sections (agent vs file) */
+.mem-section { margin-bottom: var(--sp-5); }
+.mem-section + .mem-section { border-top: 1px solid var(--border); padding-top: var(--sp-4); }
+.section-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}

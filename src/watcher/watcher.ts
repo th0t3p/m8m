@@ -71,7 +71,7 @@ function handleFileChange(path: string, platform: string): void {
   const result = importFileAsDocument(path, null, platform as SourcePlatform, 'file_watcher');
 
   updateWatchTarget(path, hash);
-  console.log(`[m8m watcher] ${path}: 1 document, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
+  console.log(`[m8m watcher] ${path}: 1 memory file, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
 }
 
 /** Start watching configured memory files for changes. Long-running. */

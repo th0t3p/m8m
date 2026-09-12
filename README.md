@@ -91,10 +91,10 @@ m8m audit
 | `m8m dismiss <id>` | Clear flags + dismiss |
 | `m8m clear [-f]` | Clear all stored memories (soft-delete) |
 | `m8m import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
-| `m8m docs` | List imported documents |
-| `m8m docs show <id>` | Show a document tree |
-| `m8m docs raw <id>` | Print a document's raw content |
-| `m8m docs diff <id>` | Show a document's change history |
+| `m8m files` | List imported memory files |
+| `m8m files show <id>` | Show a memory file tree |
+| `m8m files raw <id>` | Print a memory file's raw content |
+| `m8m files diff <id>` | Show a memory file's change history |
 | `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
 | `m8m providers` | List scan providers (vendor memory paths) |
 | `m8m providers add <name> <path> [--platform <p>] [--dir] [--ext <e>] [--desc <d>]` | Add a vendor scan target |
@@ -216,7 +216,9 @@ m8m dashboard
 
 Then open http://localhost:8808.
 
-Five views: **Timeline**, **Memories**, **Documents**, **Security**, and **Diff**.
+Four views: **Timeline**, **Memories**, **Security**, and **Diff**. The Memories
+view shows both kinds of memory together — **agent memories** (facts stored via
+the MCP server) and **file memories** (imported markdown/json files).
 
 ## Configuration
 
@@ -277,7 +279,7 @@ A `providers` entry has:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `name` | string | Vendor label recorded on each imported document (e.g. `"Claude Code"`) |
+| `name` | string | Vendor label recorded on each imported memory file (e.g. `"Claude Code"`) |
 | `platform` | string | Provenance platform: `claude_code`, `claude_desktop`, `cursor`, `local_file`, … |
 | `targets` | array | Files/directories to scan for this vendor |
 

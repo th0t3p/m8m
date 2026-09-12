@@ -15,7 +15,6 @@ import {
   getAllSnapshots,
   getChangelog,
   getDocumentChangelog,
-  getDocumentStats,
   getDocumentWithNodes,
   getMemory,
   getSecurityEvents,
@@ -274,10 +273,10 @@ program
       console.log(`Imported ${result.imported}, updated ${result.updated}, flagged ${result.flagged}`);
       return;
     }
-    // Local file → structured document import.
+    // Local file → memory file import (structured tree).
     const result = importFileAsDocument(file, null, (opts.platform ?? 'local_file') as SourcePlatform, 'manual_import');
     const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
-    console.log(`✓ ${basename(file)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
+    console.log(`✓ ${basename(file)} — 1 memory file, ${result.total_nodes} nodes${flagNote}`);
   });
 
 // --- Scan ---------------------------------------------------------------
@@ -307,20 +306,20 @@ program
       }
     }
 
-    let docs = 0;
+    let importedFiles = 0;
     let nodes = 0;
     let flagged = 0;
     for (const f of importable) {
       const result = importFileAsDocument(f.path, f.provider, f.platform, 'manual_import');
       const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
-      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — 1 document, ${result.total_nodes} nodes${flagNote}`);
-      docs++;
+      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — 1 memory file, ${result.total_nodes} nodes${flagNote}`);
+      importedFiles++;
       nodes += result.total_nodes;
       flagged += result.flagged_nodes;
     }
 
     console.log('');
-    console.log(`  Done: ${docs} documents imported, ${nodes} total nodes, ${flagged} flagged`);
+    console.log(`  Done: ${importedFiles} memory files imported, ${nodes} total nodes, ${flagged} flagged`);
     if (flagged > 0) console.log('  Run `m8m audit` to review flagged entries.');
   });
 
@@ -385,32 +384,32 @@ function renderDocTree(nodes: MemoryNode[], prefix = ''): string[] {
   return lines;
 }
 
-const docsCmd = program
-  .command('docs')
-  .description('List imported documents')
+const filesCmd = program
+  .command('files')
+  .description('List imported memory files')
   .action(() => {
     ensureDb();
-    const docs = getAllDocuments();
+    const files = getAllDocuments();
     console.log('');
-    console.log('  Imported Documents');
-    console.log('  ──────────────────');
-    if (!docs.length) {
-      console.log('  (no documents imported yet — run `m8m import <file>` or `m8m scan`)');
+    console.log('  Memory Files');
+    console.log('  ────────────');
+    if (!files.length) {
+      console.log('  (no memory files imported yet — run `m8m import <file>` or `m8m scan`)');
       return;
     }
     console.log(`  ${'ID'.padEnd(10)} ${'Provider'.padEnd(15)} ${'Path'.padEnd(34)} ${'Nodes'.padEnd(6)} ${'Flags'.padEnd(6)} v${'Last modified'}`);
-    for (const d of docs) {
+    for (const d of files) {
       const nodes = d.node_count ?? d.nodes?.length ?? 0;
       const provider = d.provider ?? d.source_platform;
       console.log(`  ${d.id.slice(0, 8).padEnd(10)} ${truncate(provider, 13).padEnd(15)} ${truncate(d.file_path, 32).padEnd(34)} ${String(nodes).padEnd(6)} ${String(d.flags_summary.length).padEnd(6)} v${d.version}`);
     }
   });
 
-docsCmd.command('show <id>').description('Show document tree with flags').action((id) => {
+filesCmd.command('show <id>').description('Show memory file tree with flags').action((id) => {
   ensureDb();
   const doc = getDocumentWithNodes(id);
   if (!doc) {
-    console.error(`Document not found: ${id}`);
+    console.error(`Memory file not found: ${id}`);
     process.exit(1);
   }
   console.log('');
@@ -421,17 +420,17 @@ docsCmd.command('show <id>').description('Show document tree with flags').action
   if (doc.flags_summary.length) console.log(`\n  ${doc.flags_summary.length} node(s) flagged — run \`m8m audit\` for details.`);
 });
 
-docsCmd.command('raw <id>').description('Print the stored raw content').action((id) => {
+filesCmd.command('raw <id>').description('Print the stored raw content').action((id) => {
   ensureDb();
   const doc = getAllDocuments().find((d) => d.id === id);
   if (!doc) {
-    console.error(`Document not found: ${id}`);
+    console.error(`Memory file not found: ${id}`);
     process.exit(1);
   }
   console.log(doc.raw_content);
 });
 
-docsCmd
+filesCmd
   .command('export <id>')
   .description('Export raw content to file (recovery)')
   .option('--output <path>', 'Output file path (default: original file path)')
@@ -439,7 +438,7 @@ docsCmd
     ensureDb();
     const doc = getAllDocuments().find((d) => d.id === id);
     if (!doc) {
-      console.error(`Document not found: ${id}`);
+      console.error(`Memory file not found: ${id}`);
       process.exit(1);
     }
     const outPath = opts.output ?? doc.file_path;
@@ -447,11 +446,11 @@ docsCmd
     console.log(`Exported ${doc.file_name} → ${outPath}`);
   });
 
-docsCmd.command('diff <id>').description('Show document change history').action((id) => {
+filesCmd.command('diff <id>').description('Show memory file change history').action((id) => {
   ensureDb();
   const doc = getAllDocuments().find((d) => d.id === id);
   if (!doc) {
-    console.error(`Document not found: ${id}`);
+    console.error(`Memory file not found: ${id}`);
     process.exit(1);
   }
   const cl = getDocumentChangelog(id);

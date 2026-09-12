@@ -26,7 +26,7 @@ import type { MemoryStatus, SourcePlatform } from '../core/types.js';
 export function registerApi(): Router {
   const router = Router();
 
-  // Documents layer
+  // Memory files layer (file-based imports, stored as document trees)
   router.get('/api/documents/stats', (_req, res) => {
     res.json(getDocumentStats());
   });

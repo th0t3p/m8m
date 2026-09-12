@@ -386,102 +386,126 @@ function memoriesTable(rows) {
 
 async function renderMemories() {
   loading(6);
-  const memories = await load('memories', '/api/memories');
+  const [memories, files] = await Promise.all([
+    load('memories', '/api/memories'),
+    load('documents', '/api/documents'),
+  ]);
   $app.innerHTML = '';
 
   const flagged = memories.filter((m) => m.flags.length);
-  $app.appendChild(pageHead('Memories', memories.length
-    ? `${memories.length} stored · ${flagged.length} carry at least one flag`
+  $app.appendChild(pageHead('Memories', memories.length || files.length
+    ? `${memories.length} agent · ${files.length} file memories${flagged.length ? ` · ${flagged.length} flagged` : ''}`
     : 'Nothing stored yet'));
 
-  if (!memories.length) {
+  if (!memories.length && !files.length) {
     $app.appendChild(emptyState('inbox', 'No memories stored yet',
       'Run "m8m scan" to discover memory files across your AI tools, or import one directly with "m8m import <file> --platform <name>".'));
     return;
   }
 
-  const listHost = el('div', {});
-  const chipButtons = new Map();
+  // --- Agent memories (facts stored via the m8m MCP server) ---
+  const agentSection = el('section', { class: 'mem-section' });
+  agentSection.appendChild(el('h2', { class: 'section-title', text: `Agent memories (${memories.length})` }));
 
-  const toolbar = el('div', { class: 'toolbar' });
-  const search = el('div', { class: 'search' });
-  search.appendChild(icon('search', 14));
-  const input = el('input', {
-    type: 'search',
-    placeholder: 'Search content or id',
-    'aria-label': 'Search memories',
-    value: ui.memories.q,
-    oninput: (event) => { ui.memories.q = event.target.value; renderList(); },
-  });
-  search.appendChild(input);
-  toolbar.appendChild(search);
+  if (memories.length) {
+    const listHost = el('div', {});
+    const chipButtons = new Map();
 
-  const statuses = [['all', 'All'], ['active', 'Active'], ['quarantined', 'Quarantined'], ['flagged', 'Flagged']];
-  for (const [key, label] of statuses) {
-    const count = key === 'all' ? memories.length
-      : key === 'flagged' ? flagged.length
-        : memories.filter((m) => m.status === key).length;
-    const button = el('button', {
-      class: 'chip',
-      'aria-pressed': String(ui.memories.status === key),
-      onclick: () => {
-        ui.memories.status = key;
-        chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === key)));
-        renderList();
-      },
-    }, label, el('span', { class: 'n', text: String(count) }));
-    chipButtons.set(key, button);
-    toolbar.appendChild(button);
-  }
-
-  const platforms = [...new Set(memories.map((m) => m.source_platform))].sort();
-  const select = el('select', {
-    class: 'select',
-    'aria-label': 'Filter by platform',
-    onchange: (event) => { ui.memories.platform = event.target.value; renderList(); },
-  },
-    el('option', { value: 'all', text: 'All platforms' }),
-    ...platforms.map((p) => el('option', { value: p, text: platform(p) })),
-  );
-  select.value = ui.memories.platform;
-  toolbar.appendChild(select);
-  $app.appendChild(toolbar);
-  $app.appendChild(listHost);
-
-  function filtered() {
-    const q = ui.memories.q.trim().toLowerCase();
-    return memories.filter((m) => {
-      if (ui.memories.status === 'flagged' && !m.flags.length) return false;
-      if (ui.memories.status !== 'all' && ui.memories.status !== 'flagged' && m.status !== ui.memories.status) return false;
-      if (ui.memories.platform !== 'all' && m.source_platform !== ui.memories.platform) return false;
-      if (q && !(m.content.toLowerCase().includes(q) || m.id.startsWith(q))) return false;
-      return true;
+    const toolbar = el('div', { class: 'toolbar' });
+    const search = el('div', { class: 'search' });
+    search.appendChild(icon('search', 14));
+    const input = el('input', {
+      type: 'search',
+      placeholder: 'Search content or id',
+      'aria-label': 'Search agent memories',
+      value: ui.memories.q,
+      oninput: (event) => { ui.memories.q = event.target.value; renderList(); },
     });
-  }
+    search.appendChild(input);
+    toolbar.appendChild(search);
 
-  function renderList() {
-    listHost.innerHTML = '';
-    const rows = filtered();
-    listHost.appendChild(el('div', { class: 'count', text: rows.length === memories.length
-      ? `${rows.length} memories`
-      : `${rows.length} of ${memories.length} memories` }));
-
-    if (!rows.length) {
-      listHost.appendChild(emptyState('search', 'No memories match', 'Try a different search term, or clear the filters to see everything.',
-        el('button', {
-          class: 'btn ghost',
-          text: 'Clear filters',
-          onclick: () => {
-            ui.memories = { q: '', status: 'all', platform: 'all' };
-            renderMemories().catch((e) => showError(e, refresh));
-          },
-        })));
-      return;
+    const statuses = [['all', 'All'], ['active', 'Active'], ['quarantined', 'Quarantined'], ['flagged', 'Flagged']];
+    for (const [key, label] of statuses) {
+      const count = key === 'all' ? memories.length
+        : key === 'flagged' ? flagged.length
+          : memories.filter((m) => m.status === key).length;
+      const button = el('button', {
+        class: 'chip',
+        'aria-pressed': String(ui.memories.status === key),
+        onclick: () => {
+          ui.memories.status = key;
+          chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === key)));
+          renderList();
+        },
+      }, label, el('span', { class: 'n', text: String(count) }));
+      chipButtons.set(key, button);
+      toolbar.appendChild(button);
     }
-    listHost.appendChild(memoriesTable(rows));
-  }
 
-  renderList();
+    const platforms = [...new Set(memories.map((m) => m.source_platform))].sort();
+    const select = el('select', {
+      class: 'select',
+      'aria-label': 'Filter by platform',
+      onchange: (event) => { ui.memories.platform = event.target.value; renderList(); },
+    },
+      el('option', { value: 'all', text: 'All platforms' }),
+      ...platforms.map((p) => el('option', { value: p, text: platform(p) })),
+    );
+    select.value = ui.memories.platform;
+    toolbar.appendChild(select);
+    agentSection.appendChild(toolbar);
+    agentSection.appendChild(listHost);
+
+    function filtered() {
+      const q = ui.memories.q.trim().toLowerCase();
+      return memories.filter((m) => {
+        if (ui.memories.status === 'flagged' && !m.flags.length) return false;
+        if (ui.memories.status !== 'all' && ui.memories.status !== 'flagged' && m.status !== ui.memories.status) return false;
+        if (ui.memories.platform !== 'all' && m.source_platform !== ui.memories.platform) return false;
+        if (q && !(m.content.toLowerCase().includes(q) || m.id.startsWith(q))) return false;
+        return true;
+      });
+    }
+
+    function renderList() {
+      listHost.innerHTML = '';
+      const rows = filtered();
+      listHost.appendChild(el('div', { class: 'count', text: rows.length === memories.length
+        ? `${rows.length} memories`
+        : `${rows.length} of ${memories.length} memories` }));
+
+      if (!rows.length) {
+        listHost.appendChild(emptyState('search', 'No memories match', 'Try a different search term, or clear the filters to see everything.',
+          el('button', {
+            class: 'btn ghost',
+            text: 'Clear filters',
+            onclick: () => {
+              ui.memories = { q: '', status: 'all', platform: 'all' };
+              renderMemories().catch((e) => showError(e, refresh));
+            },
+          })));
+        return;
+      }
+      listHost.appendChild(memoriesTable(rows));
+    }
+
+    renderList();
+  } else {
+    agentSection.appendChild(el('div', { class: 'meta', text: 'None yet — facts your agent stores through the m8m MCP server will appear here.' }));
+  }
+  $app.appendChild(agentSection);
+
+  // --- File memories (local markdown/json imports) ---
+  const fileSection = el('section', { class: 'mem-section' });
+  fileSection.appendChild(el('h2', { class: 'section-title', text: `File memories (${files.length})` }));
+  if (files.length) {
+    const list = el('div', { class: 'doc-list' });
+    for (const d of files) list.appendChild(documentCard(d));
+    fileSection.appendChild(list);
+  } else {
+    fileSection.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
+  }
+  $app.appendChild(fileSection);
 }
 
 /* --------------------------------------------------------------- security */
@@ -646,22 +670,6 @@ async function renderDiff() {
 
 /* -------------------------------------------------------------- documents */
 
-async function renderDocuments() {
-  loading(4);
-  const docs = await load('documents', '/api/documents');
-  $app.innerHTML = '';
-  $app.appendChild(pageHead('Documents', docs.length ? `${docs.length} imported files, structured as versioned trees` : 'No documents imported', []));
-
-  if (!docs.length) {
-    $app.appendChild(emptyState('file', 'No documents yet', 'Import a file with "m8m import <file>" or "m8m scan" — files land here as document trees, not shredded lines.'));
-    return;
-  }
-
-  const list = el('div', { class: 'doc-list' });
-  for (const d of docs) list.appendChild(documentCard(d));
-  $app.appendChild(list);
-}
-
 function documentCard(d) {
   const card = el('div', { class: 'card doc-card' });
   const titleLine = el('div', { class: 'doc-titleline' });
@@ -729,13 +737,14 @@ function renderDocTree(nodes) {
 
 /* --------------------------------------------------------------- bootstrap */
 
-const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff, documents: renderDocuments };
+const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff };
 const DEFAULT_VIEW = 'timeline';
 
 // Hash-based routing: each tab maps to a URL path (#/timeline, #/memories, …)
 // so a view can be opened directly and browser back/forward works.
 function viewFromHash() {
   const key = location.hash.replace(/^#\/?/, '');
+  if (key === 'documents') return 'memories'; // legacy route: documents → memories
   return views[key] ? key : DEFAULT_VIEW;
 }
 
