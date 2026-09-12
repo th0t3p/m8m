@@ -123,9 +123,33 @@ const flagLabel = (t) => humanize(t, FLAG);
 const statusLabel = (s) => humanize(s, STATUS);
 const categoryLabel = (c) => humanize(c, CATEGORY);
 
-function truncate(text, max = 220) {
-  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
-  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+// Content is presented as a snippet by default, but the full string always stays
+// in the DOM: the clamp is visual (CSS line-clamp), so nothing is ever cut in the
+// data and the expanded state keeps the original line breaks.
+function contentBlock(text, { class: cls = 'cell-content', lines = 3 } = {}) {
+  const body = el('div', { class: `${cls} clamp`, style: `--clamp-lines:${lines}` });
+  body.textContent = String(text ?? '').trim() || '—';
+  return el('div', { class: 'content-block' }, body);
+}
+
+// Runs after a view renders: gives every clamped block that actually overflows a
+// "Show full content" control. Measured, so short content gets no control.
+function decorateClamps(root) {
+  for (const node of root.querySelectorAll('.clamp:not([data-measured])')) {
+    node.setAttribute('data-measured', '1');
+    if (node.scrollHeight <= node.clientHeight + 2) continue;
+    const toggle = el('button', {
+      class: 'toggle',
+      type: 'button',
+      'aria-expanded': 'false',
+      onclick: () => {
+        const expanded = node.classList.toggle('expanded');
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? 'Show less' : 'Show full content';
+      },
+    }, 'Show full content');
+    node.after(toggle);
+  }
 }
 
 function timeAgo(iso) {
@@ -242,9 +266,9 @@ function timelineRow(change) {
   );
 
   const body = el('div', { class: 'tl-body' });
-  body.appendChild(el('div', { class: 'tl-content', text: truncate(content, 240) || 'Status change (content unchanged)' }));
+  body.appendChild(contentBlock(content || 'Status change (content unchanged)', { class: 'tl-content', lines: 2 }));
   if (!isFile && change.change_type === 'modified' && change.old_content) {
-    body.appendChild(el('div', { class: 'tl-was', text: truncate(change.old_content, 160) }));
+    body.appendChild(contentBlock(change.old_content, { class: 'tl-was', lines: 1 }));
   }
 
   const meta = el('div', { class: 'tl-meta' });
@@ -320,6 +344,7 @@ async function renderTimeline() {
     }
     $app.appendChild(timelineRow(change));
   }
+  decorateClamps($app);
 }
 
 /* --------------------------------------------------------------- memories */
@@ -361,7 +386,7 @@ function memoriesTable(rows) {
   const tbody = el('tbody');
   for (const m of rows) {
     const content = el('td', {},
-      el('div', { class: 'cell-content', text: truncate(m.content, 260) }),
+      contentBlock(m.content, { class: 'cell-content', lines: 2 }),
       el('div', { class: 'cell-sub' },
         el('span', { class: 'id', text: m.id.slice(0, 8), title: m.id }),
         el('span', { class: 'meta', text: `${categoryLabel(m.category)} · v${m.version} · seen ${timeAgo(m.last_seen)}` }),
@@ -492,6 +517,10 @@ async function renderMemories() {
         return;
       }
       listHost.appendChild(memoriesTable(rows));
+      // On filter re-renders the host is already attached, so measure now;
+      // on first paint the section is not in the document yet and the
+      // end-of-render decorateClamps($app) pass covers it instead.
+      if (listHost.isConnected) decorateClamps(listHost);
     }
 
     renderList();
@@ -509,6 +538,7 @@ async function renderMemories() {
     fileSection.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
   }
   $app.appendChild(fileSection);
+  decorateClamps($app);
 }
 
 /* --------------------------------------------------------------- security */
@@ -525,7 +555,7 @@ function eventCard(event, memory, doc) {
   if (doc) {
     const nodeContent = event.details && event.details.node_content ? String(event.details.node_content) : '';
     card.appendChild(el('div', { class: 'quote' },
-      el('div', { class: 'text', text: truncate(nodeContent || doc.file_name, 260) }),
+      contentBlock(nodeContent || doc.file_name, { class: 'text', lines: 3 }),
       el('div', { class: 'sub' },
         badge('file', 'accent'),
         el('span', { text: doc.file_name }),
@@ -536,7 +566,7 @@ function eventCard(event, memory, doc) {
     ));
   } else if (memory) {
     card.appendChild(el('div', { class: 'quote' },
-      el('div', { class: 'text', text: truncate(memory.content, 260) }),
+      contentBlock(memory.content, { class: 'text', lines: 3 }),
       el('div', { class: 'sub' },
         badge(platform(memory.source_platform)),
         el('span', { text: `trust ${memory.trust_level.toFixed(2)}` }),
@@ -548,7 +578,7 @@ function eventCard(event, memory, doc) {
   }
 
   if (event.details && event.details.detail) {
-    card.appendChild(el('div', { class: 'detail', text: String(event.details.detail) }));
+    card.appendChild(contentBlock(String(event.details.detail), { class: 'detail', lines: 2 }));
   }
 
   if (event.resolved_at) {
@@ -638,6 +668,7 @@ async function renderSecurity() {
       event.document_id ? byDocId.get(event.document_id) : null,
     ));
   }
+  decorateClamps($app);
 }
 
 /* ------------------------------------------------------------------- diff */
@@ -645,8 +676,8 @@ async function renderSecurity() {
 function diffRow(kind, sigil, after, before, entry) {
   const row = el('div', { class: `diff-row ${kind}` }, el('div', { class: 'sigil', text: sigil }));
   const body = el('div', {});
-  if (before) body.appendChild(el('div', { class: 'diff-before', text: truncate(before, 200) }));
-  body.appendChild(el('div', { class: 'diff-after', text: truncate(after, 280) }));
+  if (before) body.appendChild(contentBlock(before, { class: 'diff-before', lines: 2 }));
+  body.appendChild(contentBlock(after, { class: 'diff-after', lines: 3 }));
   body.appendChild(el('div', { class: 'diff-meta' },
     badge(platform(entry.source_platform)),
     el('span', { class: 'meta', text: timeAgo(entry.last_seen || entry.last_modified || entry.first_seen) }),
@@ -687,6 +718,7 @@ async function renderDiff() {
   for (const entry of data.added) $app.appendChild(diffRow('added', '+', entry.content, null, entry));
   for (const item of data.modified) $app.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
   for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+  decorateClamps($app);
 }
 
 /* -------------------------------------------------------------- documents */
@@ -759,6 +791,7 @@ async function toggleDocView(d, body, kind, btn, detailRow) {
     try {
       const doc = await api(`/api/documents/${d.id}`);
       body.appendChild(renderDocTree(doc.nodes || []));
+      decorateClamps(body);
     } catch (err) {
       body.appendChild(el('div', { class: 'meta', text: `Could not load tree: ${err.message}` }));
     }
@@ -778,7 +811,7 @@ function renderDocTree(nodes) {
     const li = el('li', { class: 'doc-node' });
     const row = el('div', { class: 'row doc-node-row' });
     row.appendChild(badge(n.node_type, 'mono', { mono: true }));
-    row.appendChild(el('span', { class: 'doc-node-content', text: truncate(n.heading || n.content.replace(/\s+/g, ' '), 120) }));
+    row.appendChild(contentBlock(n.heading || n.content.replace(/\s+/g, ' '), { class: 'doc-node-content', lines: 1 }));
     if (n.flags && n.flags.length) row.appendChild(badge(String(n.flags.length), 'warn'));
     li.appendChild(row);
     if (n.children && n.children.length) li.appendChild(renderDocTree(n.children));

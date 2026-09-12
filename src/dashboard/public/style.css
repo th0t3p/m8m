@@ -348,7 +348,12 @@ select.select { padding-left: var(--sp-3); min-width: 0; cursor: pointer; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.clamp.expanded { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.clamp.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+  white-space: pre-wrap;
+}
 .toggle {
   margin-top: 3px;
   padding: 0;
