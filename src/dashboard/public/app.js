@@ -1,207 +1,661 @@
-// m8m dashboard frontend (vanilla JS, no framework).
+// m8m dashboard frontend — vanilla JS, no framework, no build step.
+// Reads the REST routes in src/dashboard/api.ts. Route shapes are fixed;
+// all filtering/sorting here happens client-side on the fetched payloads.
 
 const $app = document.getElementById('app');
-const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff };
+const $toast = document.getElementById('toast-region');
 
-async function api(path, options) {
-  const res = await fetch(path, options);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+/* ------------------------------------------------------------------ icons */
+
+const ICONS = {
+  search: '<circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+};
+
+function icon(name, size = 15) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.75');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.innerHTML = ICONS[name] || '';
+  return svg;
 }
+
+/* --------------------------------------------------------------- elements */
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
     if (k === 'class') node.className = v;
     else if (k === 'text') node.textContent = v;
     else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
-    else node.setAttribute(k, v);
+    else if (v === true) node.setAttribute(k, '');
+    else node.setAttribute(k, String(v));
   }
   for (const c of children) {
-    if (c == null) continue;
-    node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    if (c == null || c === false) continue;
+    node.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
   }
   return node;
 }
 
-function badge(text, cls) {
-  return el('span', { class: `badge ${cls || ''}`, text });
+function badge(text, variant, opts = {}) {
+  return el('span', {
+    class: `badge ${variant || ''}${opts.mono ? ' mono' : ''}`.trim(),
+    text,
+    title: opts.title,
+  });
+}
+
+function pageHead(title, sub, actions = []) {
+  const head = el('div', { class: 'page-head' });
+  const left = el('div', {}, el('h1', { text: title }));
+  if (sub) left.appendChild(el('div', { class: 'sub', text: sub }));
+  head.appendChild(left);
+  if (actions.length) head.appendChild(el('div', { class: 'actions' }, ...actions));
+  return head;
+}
+
+function emptyState(iconName, title, hint, action) {
+  const node = el('div', { class: 'empty' },
+    icon(iconName, 22),
+    el('div', { class: 'title', text: title }),
+    el('div', { class: 'hint', text: hint }),
+  );
+  if (action) node.appendChild(action);
+  return node;
+}
+
+function stat(value, label, variant = '') {
+  return el('div', { class: `stat ${variant}`.trim() },
+    el('div', { class: 'value', text: value }),
+    el('div', { class: 'label', text: label }),
+  );
+}
+
+/* ------------------------------------------------------- labels & formats */
+
+const PLATFORM = {
+  claude_code: 'Claude Code', claude_web: 'Claude Web', claude_desktop: 'Claude Desktop',
+  chatgpt_web: 'ChatGPT', cursor: 'Cursor', local_file: 'Local file',
+  manual_import: 'Manual import', mem0: 'mem0', unknown: 'Unknown',
+};
+const DETECTOR = {
+  mcp_live: 'MCP', file_watcher: 'Watcher', periodic_snapshot: 'Snapshot',
+  manual_import: 'Import', cli: 'CLI', dashboard: 'Dashboard',
+};
+const FLAG = {
+  contains_instruction: 'Instruction', contains_url: 'URL', contains_email: 'Email',
+  contains_credential: 'Credential', contradicts_existing: 'Contradiction',
+  source_unknown: 'No source', hidden_character: 'Hidden chars',
+};
+const STATUS = { active: 'Active', quarantined: 'Quarantined', dismissed: 'Dismissed', deleted: 'Deleted' };
+const CHANGE = { created: 'Added', modified: 'Modified', deleted: 'Deleted', status_changed: 'Status' };
+const CATEGORY = {
+  preference: 'Preference', fact: 'Fact', instruction: 'Instruction',
+  relationship: 'Relationship', event: 'Event', credential: 'Credential', unknown: 'Unknown',
+};
+const SEVERITY_VARIANT = { critical: 'crit', warning: 'warn', info: 'info' };
+const SEVERITY_LABEL = { critical: 'Critical', warning: 'Warning', info: 'Info' };
+
+function humanize(value, map) {
+  if (value == null || value === '') return '—';
+  if (map && map[value]) return map[value];
+  return String(value).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+}
+
+const platform = (p) => humanize(p, PLATFORM);
+const detector = (d) => humanize(d, DETECTOR);
+const flagLabel = (t) => humanize(t, FLAG);
+const statusLabel = (s) => humanize(s, STATUS);
+const categoryLabel = (c) => humanize(c, CATEGORY);
+
+function truncate(text, max = 220) {
+  const s = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 function timeAgo(iso) {
   if (!iso) return '';
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return `${Math.max(s, 0)}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
-async function renderTimeline() {
-  const data = await api('/api/changelog');
-  $app.innerHTML = '';
-  $app.appendChild(el('h2', { text: 'Timeline' }));
-  if (!data.length) {
-    $app.appendChild(el('div', { class: 'empty', text: 'No changes recorded yet.' }));
-    return;
-  }
-  for (const c of data.slice(0, 100)) {
-    const kind = c.change_type === 'created' ? 'added' : c.change_type === 'deleted' ? 'deleted' : 'modified';
-    const card = el('div', { class: `card ${kind}` });
-    card.appendChild(el('div', { class: 'row' },
-      badge(c.change_type, kind === 'added' ? 'sev-info' : kind === 'deleted' ? 'sev-critical' : 'sev-warning'),
-      el('span', { class: 'meta', text: timeAgo(c.changed_at) }),
-      badge(c.detected_by, 'platform'),
-    ));
-    const text = c.new_content || c.old_content || '';
-    card.appendChild(el('div', { class: 'content', text }));
-    card.appendChild(el('div', { class: 'meta', text: `memory: ${c.memory_id || '—'}` }));
-    $app.appendChild(card);
-  }
+function clockTime(iso) {
+  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-async function renderMemories() {
-  const data = await api('/api/memories');
-  $app.innerHTML = '';
-  $app.appendChild(el('h2', { text: 'Memories' }));
-  if (!data.length) {
-    $app.appendChild(el('div', { class: 'empty', text: 'No memories stored yet.' }));
-    return;
-  }
-  const table = el('table');
-  table.appendChild(el('thead', {},
-    el('tr', {},
-      el('th', { text: 'Content' }), el('th', { text: 'Platform' }), el('th', { text: 'Trust' }),
-      el('th', { text: 'Flags' }), el('th', { text: 'Status' }), el('th', { text: 'Actions' }),
-    ),
+function dayLabel(iso) {
+  const date = new Date(iso);
+  const startOf = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOf(new Date()) - startOf(date)) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+  });
+}
+
+const trustBand = (t) => (t >= 0.7 ? 'high' : t >= 0.3 ? 'medium' : 'low');
+
+/* ------------------------------------------------------------- data layer */
+
+const ui = { timeline: 'all', security: 'unresolved', memories: { q: '', status: 'all', platform: 'all' } };
+const cache = new Map();
+
+async function api(path, options) {
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}`);
+  return res.json();
+}
+
+async function load(key, path) {
+  if (!cache.has(key)) cache.set(key, await api(path));
+  return cache.get(key);
+}
+
+const invalidate = () => cache.clear();
+
+/* ------------------------------------------------------- feedback helpers */
+
+let toastTimer;
+function toast(message, kind = 'ok') {
+  $toast.innerHTML = '';
+  $toast.appendChild(el('div', { class: `toast ${kind}`, role: 'status' },
+    icon(kind === 'error' ? 'alert' : 'check', 14),
+    el('span', { text: message }),
   ));
-  const tbody = el('tbody');
-  for (const m of data) {
-    const tr = el('tr', { class: m.flags.length ? 'flagged' : '' });
-    tr.appendChild(el('td', {}, el('div', { class: 'content', text: m.content }), el('div', { class: 'meta', text: m.id.slice(0, 8) })));
-    tr.appendChild(el('td', {}, badge(m.source_platform, 'platform')));
-    tr.appendChild(el('td', {}, badge(m.trust_level.toFixed(1), 'trust')));
-    const flagBadges = m.flags.map((f) => badge(f.type.replace(/^contains_/, ''), 'flag'));
-    tr.appendChild(el('td', {}, ...(flagBadges.length ? flagBadges : ['—'])));
-    tr.appendChild(el('td', {}, badge(m.status, m.status === 'quarantined' ? 'sev-critical' : m.status === 'active' ? 'sev-info' : '')));
-    const actions = el('td', {});
-    if (m.status === 'quarantined') {
-      actions.appendChild(el('button', { class: 'action ok', text: 'Restore', onclick: () => act(`/api/memories/${m.id}/restore`) }));
-    } else {
-      actions.appendChild(el('button', { class: 'action danger', text: 'Quarantine', onclick: () => act(`/api/memories/${m.id}/quarantine`) }));
-    }
-    tr.appendChild(actions);
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  $app.appendChild(table);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $toast.innerHTML = ''; }, 3200);
 }
 
-async function renderSecurity() {
-  const [data, memories] = await Promise.all([api('/api/events'), api('/api/memories')]);
-  const memById = new Map(memories.map((m) => [m.id, m]));
+function loading(rows = 4) {
   $app.innerHTML = '';
-  $app.appendChild(el('h2', { text: 'Security Events' }));
-  const unresolved = data.filter((e) => !e.resolved_at);
-  const stats = { total: data.length, critical: data.filter((e) => e.severity === 'critical').length, warning: data.filter((e) => e.severity === 'warning').length };
-  const grid = el('div', { class: 'stat-grid' },
-    el('div', { class: 'stat' }, el('div', { class: 'value', text: String(unresolved.length) }), el('div', { class: 'label', text: 'Unresolved' })),
-    el('div', { class: 'stat' }, el('div', { class: 'value', text: String(stats.critical) }), el('div', { class: 'label', text: 'Critical' })),
-    el('div', { class: 'stat' }, el('div', { class: 'value', text: String(stats.warning) }), el('div', { class: 'label', text: 'Warnings' })),
+  const wrap = el('div', { class: 'skeleton' });
+  for (let i = 0; i < rows; i += 1) wrap.appendChild(el('div', { class: `sk-row${i % 3 === 2 ? ' short' : ''}` }));
+  $app.appendChild(wrap);
+}
+
+function showError(err, retry) {
+  $app.innerHTML = '';
+  const banner = el('div', { class: 'banner', role: 'alert' },
+    icon('alert'),
+    el('span', { text: `Could not load this view — ${err.message}` }),
   );
-  $app.appendChild(grid);
-  if (!data.length) {
-    $app.appendChild(el('div', { class: 'empty', text: 'No security events.' }));
-    return;
-  }
-  for (const e of data) {
-    const card = el('div', { class: `card ${e.severity === 'critical' ? 'deleted' : e.severity === 'warning' ? 'modified' : ''}` });
-    card.appendChild(el('div', { class: 'row' },
-      badge(e.severity, `sev-${e.severity}`),
-      el('strong', { text: e.title }),
-      el('span', { class: 'meta', text: timeAgo(e.detected_at) }),
-    ));
-    const mem = e.memory_id ? memById.get(e.memory_id) : null;
-    if (mem) {
-      card.appendChild(el('div', { class: 'content', style: 'margin-top:8px; padding:8px 10px; background:var(--bg-elevated); border-left:3px solid var(--accent); border-radius:4px;' },
-        el('div', { text: mem.content }),
-        el('div', { class: 'meta', style: 'margin-top:4px', text: `${mem.source_platform} · trust ${mem.trust_level.toFixed(2)} · ${mem.category}${mem.version > 1 ? ` · v${mem.version}` : ''}` }),
-      ));
-    }
-    if (e.details && e.details.detail) card.appendChild(el('div', { class: 'meta', text: String(e.details.detail) }));
-    if (e.resolved_at) {
-      card.appendChild(el('div', { class: 'meta', text: `Resolved ${timeAgo(e.resolved_at)} (${e.resolution || '—'})` }));
-    } else {
-      card.appendChild(el('div', { class: 'row', style: 'margin-top:8px' },
-        el('button', { class: 'action ok', text: 'Resolve', onclick: () => act(`/api/events/${e.id}/resolve`, { resolution: 'user_dismissed' }) }),
-        e.memory_id ? el('button', { class: 'action danger', text: 'Quarantine memory', onclick: () => act(`/api/memories/${e.memory_id}/quarantine`) }) : null,
-      ));
-    }
-    $app.appendChild(card);
-  }
+  if (retry) banner.appendChild(el('button', { class: 'btn ghost', text: 'Retry', onclick: retry }));
+  $app.appendChild(banner);
 }
 
-async function renderDiff() {
-  const data = await api('/api/diff');
-  $app.innerHTML = '';
-  $app.appendChild(el('h2', { text: 'Diff' }));
-  $app.appendChild(el('div', { class: 'meta', text: data.snapshot ? `vs snapshot ${data.snapshot.slice(0, 8)} (${timeAgo(data.snapshot_taken_at)})` : 'vs empty state' }));
-  if (!data.added.length && !data.modified.length && !data.deleted.length) {
-    $app.appendChild(el('div', { class: 'empty', text: 'No differences.' }));
-    return;
-  }
-  const summary = el('div', { class: 'card', text: `${data.added.length} added · ${data.modified.length} modified · ${data.deleted.length} deleted` });
-  $app.appendChild(summary);
-  for (const e of data.added) $app.appendChild(diffCard(e, 'added', '+'));
-  for (const m of data.modified) $app.appendChild(diffCard(m.after, 'modified', '~', m.before.content));
-  for (const e of data.deleted) $app.appendChild(diffCard(e, 'deleted', '−'));
-}
-
-function diffCard(entry, kind, sigil, beforeContent) {
-  const card = el('div', { class: `card ${kind}` });
-  card.appendChild(el('div', { class: 'row' },
-    el('strong', { text: sigil }),
-    el('span', { class: 'content', text: entry.content }),
-  ));
-  if (beforeContent) card.appendChild(el('div', { class: 'meta', text: `was: ${beforeContent}` }));
-  card.appendChild(el('div', { class: 'row', style: 'margin-top:6px' },
-    badge(entry.source_platform, 'platform'),
-    el('span', { class: 'meta', text: entry.id.slice(0, 8) }),
-  ));
-  return card;
-}
-
-async function act(path, body) {
+async function act(path, body, message) {
   try {
     await api(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {}),
     });
+    invalidate();
     refresh();
+    if (message) toast(message);
   } catch (err) {
-    alert(`Action failed: ${err.message}`);
+    toast(`Action failed — ${err.message}`, 'error');
   }
 }
 
-function refresh() {
-  const active = document.querySelector('.tab.active');
-  if (active) views[active.dataset.view]().catch((e) => showError(e));
+/* --------------------------------------------------------------- timeline */
+
+function timelineRow(change, byId) {
+  const kind = { created: 'added', modified: 'modified', deleted: 'deleted', status_changed: 'status' }[change.change_type] || 'modified';
+  const memory = change.memory_id ? byId.get(change.memory_id) : null;
+  const variant = kind === 'added' ? 'ok' : kind === 'deleted' ? 'crit' : kind === 'status' ? '' : 'warn';
+  const content = change.change_type === 'deleted'
+    ? change.old_content
+    : change.new_content || change.old_content || memory?.content;
+
+  const row = el('div', { class: `tl-row ${kind}` },
+    el('div', { class: 'tl-time', text: clockTime(change.changed_at), title: new Date(change.changed_at).toLocaleString() }),
+    el('div', { class: 'tl-mark' }, el('span', { class: `tl-dot ${kind}` })),
+  );
+
+  const body = el('div', { class: 'tl-body' });
+  body.appendChild(el('div', { class: 'tl-content', text: truncate(content, 240) || 'Status change (content unchanged)' }));
+  if (change.change_type === 'modified' && change.old_content) {
+    body.appendChild(el('div', { class: 'tl-was', text: truncate(change.old_content, 160) }));
+  }
+
+  const meta = el('div', { class: 'tl-meta' });
+  meta.appendChild(badge(humanize(change.change_type, CHANGE), variant));
+  if (change.change_type === 'status_changed') {
+    meta.appendChild(badge(`${statusLabel(change.old_status)} → ${statusLabel(change.new_status)}`, 'accent'));
+  }
+  meta.appendChild(badge(detector(change.detected_by)));
+  if (memory) meta.appendChild(badge(platform(memory.source_platform)));
+  meta.appendChild(el('span', { class: 'id', text: change.memory_id ? change.memory_id.slice(0, 8) : '—', title: change.memory_id || '' }));
+  body.appendChild(meta);
+
+  row.appendChild(body);
+  return row;
 }
 
-function showError(err) {
+async function renderTimeline() {
+  loading(5);
+  const [changes, memories] = await Promise.all([
+    load('changelog', '/api/changelog'),
+    load('memories', '/api/memories'),
+  ]);
+  const byId = new Map(memories.map((m) => [m.id, m]));
   $app.innerHTML = '';
-  $app.appendChild(el('div', { class: 'empty', text: `Error: ${err.message}` }));
+
+  $app.appendChild(pageHead('Timeline', changes.length ? `${changes.length} memory changes, newest first` : 'Nothing captured yet', [
+    el('button', { class: 'btn ghost', onclick: () => { invalidate(); refresh(); } }, icon('refresh'), 'Refresh'),
+  ]));
+
+  if (!changes.length) {
+    $app.appendChild(emptyState('clock', 'Nothing recorded yet',
+      'Import a memory file with "m8m import <file>", or start the watcher with "m8m watch" — every change it sees lands here.'));
+    return;
+  }
+
+  const counts = changes.reduce((acc, c) => {
+    acc[c.change_type] = (acc[c.change_type] || 0) + 1;
+    return acc;
+  }, {});
+  const filters = [['all', 'All'], ['created', 'Added'], ['modified', 'Modified'], ['status_changed', 'Status'], ['deleted', 'Deleted']];
+  const chips = el('div', { class: 'toolbar' });
+  for (const [key, label] of filters) {
+    const count = key === 'all' ? changes.length : counts[key] || 0;
+    chips.appendChild(el('button', {
+      class: 'chip',
+      'aria-pressed': String(ui.timeline === key),
+      onclick: () => { ui.timeline = key; renderTimeline().catch((e) => showError(e, refresh)); },
+    }, label, el('span', { class: 'n', text: String(count) })));
+  }
+  $app.appendChild(chips);
+
+  const rows = changes.filter((c) => ui.timeline === 'all' || c.change_type === ui.timeline);
+  if (!rows.length) {
+    $app.appendChild(emptyState('clock', 'No changes of this kind', 'Nothing has been recorded for this filter yet.',
+      el('button', { class: 'btn ghost', text: 'Show all changes', onclick: () => { ui.timeline = 'all'; renderTimeline().catch((e) => showError(e, refresh)); } })));
+    return;
+  }
+
+  let currentDay = null;
+  for (const change of rows) {
+    const day = dayLabel(change.changed_at);
+    if (day !== currentDay) {
+      currentDay = day;
+      $app.appendChild(el('div', { class: 'tl-head' },
+        el('span', { text: day }),
+        el('span', { class: 'rule' }),
+      ));
+    }
+    $app.appendChild(timelineRow(change, byId));
+  }
 }
 
-document.querySelectorAll('.tab').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    views[btn.dataset.view]().catch(showError);
+/* --------------------------------------------------------------- memories */
+
+function trustCell(trust) {
+  const band = trustBand(trust);
+  return el('div', { class: `trust ${band}`, title: `Trust ${trust.toFixed(2)} — ${band}` },
+    el('span', { class: 'trust-track' },
+      el('span', { class: 'trust-fill', style: `width:${Math.round(Math.max(0, Math.min(1, trust)) * 100)}%` }),
+    ),
+    el('span', { class: 'trust-value', text: trust.toFixed(2) }),
+  );
+}
+
+// The analyzer can emit the same flag type more than once for one entry;
+// show each type once so the column stays scannable.
+function flagBadges(flags) {
+  const seen = new Set();
+  const unique = flags.filter((f) => (seen.has(f.type) ? false : (seen.add(f.type), true)));
+  const shown = unique.slice(0, 3);
+  const nodes = shown.map((f) => badge(flagLabel(f.type), SEVERITY_VARIANT[f.severity] || '', { title: f.detail }));
+  if (unique.length > shown.length) nodes.push(badge(`+${unique.length - shown.length}`, '', { title: unique.slice(3).map((f) => flagLabel(f.type)).join(', ') }));
+  return nodes;
+}
+
+function memoriesTable(rows) {
+  const table = el('table');
+  table.appendChild(el('thead', {},
+    el('tr', {},
+      el('th', { text: 'Content' }),
+      el('th', { text: 'Platform' }),
+      el('th', { class: 'num', text: 'Trust' }),
+      el('th', { text: 'Flags' }),
+      el('th', { text: 'Status' }),
+      el('th', { class: 'num', text: 'Actions' }),
+    ),
+  ));
+
+  const tbody = el('tbody');
+  for (const m of rows) {
+    const content = el('td', {},
+      el('div', { class: 'cell-content', text: truncate(m.content, 260) }),
+      el('div', { class: 'cell-sub' },
+        el('span', { class: 'id', text: m.id.slice(0, 8), title: m.id }),
+        el('span', { class: 'meta', text: `${categoryLabel(m.category)} · v${m.version} · seen ${timeAgo(m.last_seen)}` }),
+      ),
+    );
+
+    const statusVariant = m.status === 'quarantined' ? 'crit' : m.status === 'deleted' ? '' : m.status === 'dismissed' ? '' : 'ok';
+
+    tbody.appendChild(el('tr', {},
+      content,
+      el('td', {}, badge(platform(m.source_platform))),
+      el('td', { class: 'num' }, trustCell(m.trust_level)),
+      el('td', {}, el('div', { class: 'flag-list' },
+        ...(m.flags.length ? flagBadges(m.flags) : [el('span', { class: 'meta', text: '—' })]),
+      )),
+      el('td', {}, badge(statusLabel(m.status), statusVariant)),
+      el('td', { class: 'num' }, el('div', { class: 'row-actions' },
+        m.status === 'quarantined'
+          ? el('button', { class: 'btn ok', onclick: () => act(`/api/memories/${m.id}/restore`, {}, 'Memory restored') }, icon('check', 14), 'Restore')
+          : el('button', { class: 'btn danger', onclick: () => act(`/api/memories/${m.id}/quarantine`, {}, 'Memory quarantined') }, 'Quarantine'),
+      )),
+    ));
+  }
+  table.appendChild(tbody);
+  return el('div', { class: 'table-wrap' }, table);
+}
+
+async function renderMemories() {
+  loading(6);
+  const memories = await load('memories', '/api/memories');
+  $app.innerHTML = '';
+
+  const flagged = memories.filter((m) => m.flags.length);
+  $app.appendChild(pageHead('Memories', memories.length
+    ? `${memories.length} stored · ${flagged.length} carry at least one flag`
+    : 'Nothing stored yet'));
+
+  if (!memories.length) {
+    $app.appendChild(emptyState('inbox', 'No memories stored yet',
+      'Run "m8m scan" to discover memory files across your AI tools, or import one directly with "m8m import <file> --platform <name>".'));
+    return;
+  }
+
+  const listHost = el('div', {});
+  const chipButtons = new Map();
+
+  const toolbar = el('div', { class: 'toolbar' });
+  const search = el('div', { class: 'search' });
+  search.appendChild(icon('search', 14));
+  const input = el('input', {
+    type: 'search',
+    placeholder: 'Search content or id',
+    'aria-label': 'Search memories',
+    value: ui.memories.q,
+    oninput: (event) => { ui.memories.q = event.target.value; renderList(); },
+  });
+  search.appendChild(input);
+  toolbar.appendChild(search);
+
+  const statuses = [['all', 'All'], ['active', 'Active'], ['quarantined', 'Quarantined'], ['flagged', 'Flagged']];
+  for (const [key, label] of statuses) {
+    const count = key === 'all' ? memories.length
+      : key === 'flagged' ? flagged.length
+        : memories.filter((m) => m.status === key).length;
+    const button = el('button', {
+      class: 'chip',
+      'aria-pressed': String(ui.memories.status === key),
+      onclick: () => {
+        ui.memories.status = key;
+        chipButtons.forEach((btn, k) => btn.setAttribute('aria-pressed', String(k === key)));
+        renderList();
+      },
+    }, label, el('span', { class: 'n', text: String(count) }));
+    chipButtons.set(key, button);
+    toolbar.appendChild(button);
+  }
+
+  const platforms = [...new Set(memories.map((m) => m.source_platform))].sort();
+  const select = el('select', {
+    class: 'select',
+    'aria-label': 'Filter by platform',
+    onchange: (event) => { ui.memories.platform = event.target.value; renderList(); },
+  },
+    el('option', { value: 'all', text: 'All platforms' }),
+    ...platforms.map((p) => el('option', { value: p, text: platform(p) })),
+  );
+  select.value = ui.memories.platform;
+  toolbar.appendChild(select);
+  $app.appendChild(toolbar);
+  $app.appendChild(listHost);
+
+  function filtered() {
+    const q = ui.memories.q.trim().toLowerCase();
+    return memories.filter((m) => {
+      if (ui.memories.status === 'flagged' && !m.flags.length) return false;
+      if (ui.memories.status !== 'all' && ui.memories.status !== 'flagged' && m.status !== ui.memories.status) return false;
+      if (ui.memories.platform !== 'all' && m.source_platform !== ui.memories.platform) return false;
+      if (q && !(m.content.toLowerCase().includes(q) || m.id.startsWith(q))) return false;
+      return true;
+    });
+  }
+
+  function renderList() {
+    listHost.innerHTML = '';
+    const rows = filtered();
+    listHost.appendChild(el('div', { class: 'count', text: rows.length === memories.length
+      ? `${rows.length} memories`
+      : `${rows.length} of ${memories.length} memories` }));
+
+    if (!rows.length) {
+      listHost.appendChild(emptyState('search', 'No memories match', 'Try a different search term, or clear the filters to see everything.',
+        el('button', {
+          class: 'btn ghost',
+          text: 'Clear filters',
+          onclick: () => {
+            ui.memories = { q: '', status: 'all', platform: 'all' };
+            renderMemories().catch((e) => showError(e, refresh));
+          },
+        })));
+      return;
+    }
+    listHost.appendChild(memoriesTable(rows));
+  }
+
+  renderList();
+}
+
+/* --------------------------------------------------------------- security */
+
+function eventCard(event, memory) {
+  const card = el('div', { class: `event ${event.severity}${event.resolved_at ? ' resolved' : ''}` });
+
+  card.appendChild(el('div', { class: 'event-head' },
+    badge(humanize(event.severity, SEVERITY_LABEL), SEVERITY_VARIANT[event.severity] || ''),
+    el('span', { class: 'title', text: event.title }),
+    el('span', { class: 'meta time', text: timeAgo(event.detected_at), title: new Date(event.detected_at).toLocaleString() }),
+  ));
+
+  if (memory) {
+    card.appendChild(el('div', { class: 'quote' },
+      el('div', { class: 'text', text: truncate(memory.content, 260) }),
+      el('div', { class: 'sub' },
+        badge(platform(memory.source_platform)),
+        el('span', { text: `trust ${memory.trust_level.toFixed(2)}` }),
+        el('span', { text: categoryLabel(memory.category) }),
+        memory.version > 1 ? el('span', { text: `v${memory.version}` }) : null,
+        el('span', { class: 'id', text: memory.id.slice(0, 8), title: memory.id }),
+      ),
+    ));
+  }
+
+  if (event.details && event.details.detail) {
+    card.appendChild(el('div', { class: 'detail', text: String(event.details.detail) }));
+  }
+
+  if (event.resolved_at) {
+    card.appendChild(el('div', { class: 'event-actions' },
+      badge(`Resolved ${timeAgo(event.resolved_at)} · ${humanize(event.resolution)}`, 'ok'),
+    ));
+  } else {
+    card.appendChild(el('div', { class: 'event-actions' },
+      el('button', {
+        class: 'btn primary',
+        onclick: () => act(`/api/events/${event.id}/resolve`, { resolution: 'user_dismissed' }, 'Event resolved'),
+      }, icon('check', 14), 'Resolve'),
+      event.memory_id
+        ? el('button', {
+          class: 'btn danger',
+          onclick: () => act(`/api/memories/${event.memory_id}/quarantine`, {}, 'Memory quarantined'),
+        }, 'Quarantine memory')
+        : null,
+    ));
+  }
+
+  return card;
+}
+
+async function renderSecurity() {
+  loading(4);
+  const [events, memories] = await Promise.all([
+    load('events', '/api/events'),
+    load('memories', '/api/memories'),
+  ]);
+  const byId = new Map(memories.map((m) => [m.id, m]));
+  $app.innerHTML = '';
+
+  const unresolved = events.filter((e) => !e.resolved_at);
+  const unresolvedCritical = unresolved.filter((e) => e.severity === 'critical').length;
+  const unresolvedWarnings = unresolved.filter((e) => e.severity === 'warning').length;
+
+  $app.appendChild(pageHead('Security', 'Every flag the analyzer raised, most severe first'));
+  $app.appendChild(el('div', { class: 'stat-strip' },
+    stat(String(unresolved.length), unresolved.length === 1 ? 'unresolved event' : 'unresolved events'),
+    stat(String(unresolvedCritical), 'unresolved critical', unresolvedCritical ? 'crit' : ''),
+    stat(String(unresolvedWarnings), 'unresolved warnings', unresolvedWarnings ? 'warn' : ''),
+    stat(String(events.length), 'events on record'),
+  ));
+
+  if (!events.length) {
+    $app.appendChild(emptyState('inbox', 'No security events',
+      'The analyzer raises an event whenever a memory looks like an instruction, a credential, a contradiction, or carries hidden characters.'));
+    return;
+  }
+
+  const filters = [
+    ['unresolved', 'Unresolved', unresolved.length],
+    ['all', 'All', events.length],
+    ['critical', 'Critical', events.filter((e) => e.severity === 'critical').length],
+    ['warning', 'Warning', events.filter((e) => e.severity === 'warning').length],
+    ['info', 'Info', events.filter((e) => e.severity === 'info').length],
+  ];
+  const chips = el('div', { class: 'toolbar' });
+  for (const [key, label, count] of filters) {
+    chips.appendChild(el('button', {
+      class: 'chip',
+      'aria-pressed': String(ui.security === key),
+      onclick: () => { ui.security = key; renderSecurity().catch((e) => showError(e, refresh)); },
+    }, label, el('span', { class: 'n', text: String(count) })));
+  }
+  $app.appendChild(chips);
+
+  const shown = events.filter((e) => {
+    if (ui.security === 'unresolved') return !e.resolved_at;
+    if (ui.security === 'all') return true;
+    return e.severity === ui.security;
+  });
+
+  if (!shown.length) {
+    $app.appendChild(emptyState('inbox', 'Nothing to review', 'No security events match this filter. Resolved events stay on record under "All".',
+      ui.security !== 'all' ? el('button', { class: 'btn ghost', text: 'Show all events', onclick: () => { ui.security = 'all'; renderSecurity().catch((e) => showError(e, refresh)); } }) : null));
+    return;
+  }
+
+  for (const event of shown) {
+    $app.appendChild(eventCard(event, event.memory_id ? byId.get(event.memory_id) : null));
+  }
+}
+
+/* ------------------------------------------------------------------- diff */
+
+function diffRow(kind, sigil, after, before, entry) {
+  const row = el('div', { class: `diff-row ${kind}` }, el('div', { class: 'sigil', text: sigil }));
+  const body = el('div', {});
+  if (before) body.appendChild(el('div', { class: 'diff-before', text: truncate(before, 200) }));
+  body.appendChild(el('div', { class: 'diff-after', text: truncate(after, 280) }));
+  body.appendChild(el('div', { class: 'diff-meta' },
+    badge(platform(entry.source_platform)),
+    el('span', { class: 'meta', text: timeAgo(entry.last_seen || entry.last_modified || entry.first_seen) }),
+    el('span', { class: 'id', text: entry.id.slice(0, 8), title: entry.id }),
+  ));
+  row.appendChild(body);
+  return row;
+}
+
+async function renderDiff() {
+  loading(3);
+  const data = await load('diff', '/api/diff');
+  $app.innerHTML = '';
+
+  $app.appendChild(pageHead('Diff',
+    data.snapshot
+      ? `Against snapshot ${data.snapshot.slice(0, 8)}, taken ${timeAgo(data.snapshot_taken_at)}`
+      : 'No baseline snapshot yet — take one to start tracking drift',
+    [
+      el('button', { class: 'btn primary', onclick: () => act('/api/snapshot', {}, 'Snapshot taken') }, icon('camera', 14), 'Take snapshot'),
+      el('button', { class: 'btn ghost', onclick: () => { invalidate(); refresh(); } }, icon('refresh'), 'Refresh'),
+    ]));
+
+  $app.appendChild(el('div', { class: 'diff-summary' },
+    badge(`${data.added.length} added`, 'ok'),
+    badge(`${data.modified.length} modified`, 'warn'),
+    badge(`${data.deleted.length} deleted`, data.deleted.length ? 'crit' : ''),
+  ));
+
+  if (!data.added.length && !data.modified.length && !data.deleted.length) {
+    $app.appendChild(emptyState('check', 'No drift',
+      data.snapshot
+        ? 'Every memory matches the baseline snapshot.'
+        : 'Take a snapshot to record a baseline; later changes will be listed here.'));
+    return;
+  }
+
+  for (const entry of data.added) $app.appendChild(diffRow('added', '+', entry.content, null, entry));
+  for (const item of data.modified) $app.appendChild(diffRow('modified', '~', item.after.content, item.before.content, item.after));
+  for (const entry of data.deleted) $app.appendChild(diffRow('deleted', '−', entry.content, null, entry));
+}
+
+/* --------------------------------------------------------------- bootstrap */
+
+const views = { timeline: renderTimeline, memories: renderMemories, security: renderSecurity, diff: renderDiff };
+
+function refresh() {
+  const active = document.querySelector('.tab[aria-current="page"]') || document.querySelector('.tab');
+  const view = views[active?.dataset.view] || renderTimeline;
+  $app.setAttribute('aria-busy', 'true');
+  view()
+    .catch((err) => showError(err, refresh))
+    .finally(() => $app.removeAttribute('aria-busy'));
+}
+
+document.querySelectorAll('.tab').forEach((button) => {
+  button.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((b) => b.removeAttribute('aria-current'));
+    button.setAttribute('aria-current', 'page');
+    refresh();
   });
 });
 
