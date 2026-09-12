@@ -63,6 +63,7 @@ export const SCHEMA_STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS security_events (
     id TEXT PRIMARY KEY,
     memory_id TEXT,
+    document_id TEXT,
     event_type TEXT NOT NULL,
     severity TEXT NOT NULL DEFAULT 'info',
     title TEXT NOT NULL,

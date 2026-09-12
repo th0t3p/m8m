@@ -70,6 +70,7 @@ export interface ChangelogEntry {
 export interface SecurityEvent {
   id: string;
   memory_id?: string;
+  document_id?: string;
   event_type: string;
   severity: EventSeverity;
   title: string;

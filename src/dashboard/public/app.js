@@ -515,7 +515,7 @@ async function renderMemories() {
 
 /* --------------------------------------------------------------- security */
 
-function eventCard(event, memory) {
+function eventCard(event, memory, doc) {
   const card = el('div', { class: `event ${event.severity}${event.resolved_at ? ' resolved' : ''}` });
 
   card.appendChild(el('div', { class: 'event-head' },
@@ -524,7 +524,19 @@ function eventCard(event, memory) {
     el('span', { class: 'meta time', text: timeAgo(event.detected_at), title: new Date(event.detected_at).toLocaleString() }),
   ));
 
-  if (memory) {
+  if (doc) {
+    const nodeContent = event.details && event.details.node_content ? String(event.details.node_content) : '';
+    card.appendChild(el('div', { class: 'quote' },
+      el('div', { class: 'text', text: truncate(nodeContent || doc.file_name, 260) }),
+      el('div', { class: 'sub' },
+        badge('file', 'accent'),
+        el('span', { text: doc.file_name }),
+        badge(doc.provider || platform(doc.source_platform)),
+        event.details && event.details.node_heading ? el('span', { text: `§ ${event.details.node_heading}` }) : null,
+        el('span', { class: 'id', text: doc.id.slice(0, 8), title: doc.id }),
+      ),
+    ));
+  } else if (memory) {
     card.appendChild(el('div', { class: 'quote' },
       el('div', { class: 'text', text: truncate(memory.content, 260) }),
       el('div', { class: 'sub' },
@@ -565,11 +577,13 @@ function eventCard(event, memory) {
 
 async function renderSecurity() {
   loading(4);
-  const [events, memories] = await Promise.all([
+  const [events, memories, docs] = await Promise.all([
     load('events', '/api/events'),
     load('memories', '/api/memories'),
+    load('documents', '/api/documents'),
   ]);
   const byId = new Map(memories.map((m) => [m.id, m]));
+  const byDocId = new Map(docs.map((d) => [d.id, d]));
   $app.innerHTML = '';
 
   const unresolved = events.filter((e) => !e.resolved_at);
@@ -620,7 +634,11 @@ async function renderSecurity() {
   }
 
   for (const event of shown) {
-    $app.appendChild(eventCard(event, event.memory_id ? byId.get(event.memory_id) : null));
+    $app.appendChild(eventCard(
+      event,
+      event.memory_id ? byId.get(event.memory_id) : null,
+      event.document_id ? byDocId.get(event.document_id) : null,
+    ));
   }
 }
 

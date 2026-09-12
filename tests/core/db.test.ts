@@ -163,6 +163,15 @@ describe('db — documents', () => {
     expect(timeline[0].nodes_added).toBe(1);
   });
 
+  it('creates security events for flagged document nodes', () => {
+    const parsed = { title: 'T', nodes: [{ node_type: 'paragraph', content: 'API key is sk_live_abc123', children: [] }] };
+    upsertDocument('/tmp/sec.md', 'API key is sk_live_abc123', parsed, 'local_file', 'Codex', 0.5, 'cli');
+    const events = getSecurityEvents({ resolved: false });
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0].document_id).toBeTruthy();
+    expect(events[0].memory_id).toBeUndefined();
+  });
+
   it('upsertDocument with same hash only updates last_seen', () => {
     const parsed = { title: 'T', nodes: [] };
     const a = upsertDocument('/tmp/a.md', 'same content', parsed, 'local_file', null, 0.5, 'cli');

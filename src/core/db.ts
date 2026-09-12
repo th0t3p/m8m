@@ -132,6 +132,7 @@ function rowToSecurityEvent(r: any): SecurityEvent {
   return {
     id: r.id,
     memory_id: r.memory_id ?? undefined,
+    document_id: r.document_id ?? undefined,
     event_type: r.event_type,
     severity: r.severity as EventSeverity,
     title: r.title,
@@ -176,6 +177,7 @@ function migrateSchema(instance: Database.Database): void {
     }
   };
   ensureColumn('memory_documents', 'provider', `ALTER TABLE memory_documents ADD COLUMN provider TEXT`);
+  ensureColumn('security_events', 'document_id', `ALTER TABLE security_events ADD COLUMN document_id TEXT`);
 }
 
 export function getDb(): Database.Database {
@@ -220,23 +222,35 @@ function addChangelog(
 }
 
 function createSecurityEventsForFlags(entry: MemoryEntry, flags: MemoryFlag[]): void {
+  createSecurityEvents({ memory_id: entry.id }, flags);
+}
+
+/** Create (deduped) security events for a memory or file-memory's flags. */
+function createSecurityEvents(
+  ref: { memory_id?: string; document_id?: string },
+  flags: MemoryFlag[],
+  extraDetails: Record<string, unknown> = {},
+): void {
   const d = requireDb();
   for (const f of flags) {
     const map = FLAG_TO_EVENT[f.type];
     if (!map) continue;
     const severity = f.severity ?? map.default_severity;
+    const column = ref.memory_id ? 'memory_id' : 'document_id';
+    const refId = ref.memory_id ?? ref.document_id;
     const existing = d
       .prepare(
-        `SELECT id FROM security_events WHERE memory_id = ? AND event_type = ? AND resolved_at IS NULL LIMIT 1`,
+        `SELECT id FROM security_events WHERE ${column} = ? AND event_type = ? AND resolved_at IS NULL LIMIT 1`,
       )
-      .get(entry.id, map.event_type);
+      .get(refId, map.event_type);
     if (existing) continue;
     createSecurityEvent({
-      memory_id: entry.id,
+      memory_id: ref.memory_id,
+      document_id: ref.document_id,
       event_type: map.event_type,
       severity,
       title: map.title,
-      details: { flag_type: f.type, detail: f.detail },
+      details: { flag_type: f.type, detail: f.detail, ...extraDetails },
     });
   }
 }
@@ -624,11 +638,12 @@ export function createSecurityEvent(
   const detectedAt = event.detected_at ?? nowIso();
   d.prepare(
     `INSERT INTO security_events
-      (id, memory_id, event_type, severity, title, details, detected_at, resolved_at, resolution)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, memory_id, document_id, event_type, severity, title, details, detected_at, resolved_at, resolution)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     orNull(event.memory_id),
+    orNull(event.document_id),
     event.event_type,
     event.severity,
     event.title,
@@ -800,6 +815,13 @@ function insertDocumentNodes(
       analysis.anomaly_score,
       analysis.category,
     );
+
+    if (analysis.flags.length > 0) {
+      createSecurityEvents({ document_id: documentId }, analysis.flags, {
+        node_content: node.content,
+        node_heading: node.heading ?? parentHeading ?? null,
+      });
+    }
 
     let childPos = 0;
     for (const child of node.children ?? []) {
