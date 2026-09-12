@@ -101,7 +101,8 @@ async function renderMemories() {
 }
 
 async function renderSecurity() {
-  const data = await api('/api/events');
+  const [data, memories] = await Promise.all([api('/api/events'), api('/api/memories')]);
+  const memById = new Map(memories.map((m) => [m.id, m]));
   $app.innerHTML = '';
   $app.appendChild(el('h2', { text: 'Security Events' }));
   const unresolved = data.filter((e) => !e.resolved_at);
@@ -123,6 +124,13 @@ async function renderSecurity() {
       el('strong', { text: e.title }),
       el('span', { class: 'meta', text: timeAgo(e.detected_at) }),
     ));
+    const mem = e.memory_id ? memById.get(e.memory_id) : null;
+    if (mem) {
+      card.appendChild(el('div', { class: 'content', style: 'margin-top:8px; padding:8px 10px; background:var(--bg-elevated); border-left:3px solid var(--accent); border-radius:4px;' },
+        el('div', { text: mem.content }),
+        el('div', { class: 'meta', style: 'margin-top:4px', text: `${mem.source_platform} · trust ${mem.trust_level.toFixed(2)} · ${mem.category}${mem.version > 1 ? ` · v${mem.version}` : ''}` }),
+      ));
+    }
     if (e.details && e.details.detail) card.appendChild(el('div', { class: 'meta', text: String(e.details.detail) }));
     if (e.resolved_at) {
       card.appendChild(el('div', { class: 'meta', text: `Resolved ${timeAgo(e.resolved_at)} (${e.resolution || '—'})` }));
