@@ -15,12 +15,24 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
   let section: string | undefined;
   let inFence = false;
   let fenceBuffer: string[] = [];
+  let indentBuffer: string[] = [];
+  let indentStart = 0;
 
-  for (let i = 0; i < lines.length; i++) {
+  const flushIndent = () => {
+    if (indentBuffer.length) {
+      pushLine(out, indentBuffer.join('\n'), indentBuffer.join('\n'), indentStart, section);
+      indentBuffer = [];
+    }
+  };
+
+  let i = 0;
+  while (i < lines.length) {
     const raw = lines[i];
     const line = raw.trim();
+    const isIndented = /^ {4,}|\t/.test(raw);
 
     if (line.startsWith('```')) {
+      flushIndent();
       if (inFence) {
         pushLine(out, fenceBuffer.join('\n'), raw, i + 1, section);
         fenceBuffer = [];
@@ -28,27 +40,54 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
       } else {
         inFence = true;
       }
+      i++;
       continue;
     }
     if (inFence) {
       fenceBuffer.push(line);
+      i++;
       continue;
     }
 
-    if (!line) continue;
-    if (/^#{1,6}\s+/.test(line)) {
-      section = line.replace(/^#{1,6}\s+/, '').trim();
+    if (!line) {
+      flushIndent();
+      i++;
       continue;
     }
-    if (/^(---|\*\*\*|___)\s*$/.test(line)) continue;
-    if (/^\s*[-*>]+\s*$/.test(line)) continue;
+
+    // Indented code block (4+ spaces or a tab): join consecutive indented
+    // lines into a single entry so multi-line snippets stay together.
+    if (isIndented) {
+      if (indentBuffer.length === 0) indentStart = i + 1;
+      indentBuffer.push(raw.replace(/^( {4}|\t)/, ''));
+      i++;
+      continue;
+    }
+    flushIndent();
+
+    if (/^#{1,6}\s+/.test(line)) {
+      section = line.replace(/^#{1,6}\s+/, '').trim();
+      i++;
+      continue;
+    }
+    if (/^(---|\*\*\*|___)\s*$/.test(line)) { i++; continue; }
+    if (/^\s*[-*>]+\s*$/.test(line)) { i++; continue; }
 
     let text = line;
     if (/^[-*+]\s+/.test(text)) text = text.replace(/^[-*+]\s+/, '');
     else if (/^\d+[.)]\s+/.test(text)) text = text.replace(/^\d+[.)]\s+/, '');
-    pushLine(out, text, raw, i + 1, section);
+
+    // Join shell line continuations (a trailing backslash continues the line).
+    const startLine = i + 1;
+    while (text.endsWith('\\') && i + 1 < lines.length) {
+      i++;
+      text = text.slice(0, -1).trimEnd() + ' ' + lines[i].trim();
+    }
+    pushLine(out, text, raw, startLine, section);
+    i++;
   }
 
+  flushIndent();
   if (inFence && fenceBuffer.length) {
     pushLine(out, fenceBuffer.join('\n'), '', lines.length, section);
   }

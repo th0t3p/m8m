@@ -23,6 +23,21 @@ describe('parseMarkdownMemoryFile', () => {
     const out = parseMarkdownMemoryFile(['- one', '', '---', '- two'].join('\n'));
     expect(out.map((p) => p.content)).toEqual(['one', 'two']);
   });
+
+  it('joins indented code blocks into a single entry', () => {
+    const md = ['Intro', '', '    curl -s http://x/ingest -H \\', "      -d '{\"a\":1}'", '', '- done'].join('\n');
+    const out = parseMarkdownMemoryFile(md);
+    expect(out).toHaveLength(3);
+    expect(out[0].content).toBe('Intro');
+    expect(out[1].content).toContain('curl -s http://x/ingest');
+    expect(out[1].content).toContain("-d '{\"a\":1}'");
+    expect(out[2].content).toBe('done');
+  });
+
+  it('joins shell line continuations (trailing backslash)', () => {
+    const out = parseMarkdownMemoryFile(['cmd one \\', 'continuation', 'standalone'].join('\n'));
+    expect(out.map((p) => p.content)).toEqual(['cmd one continuation', 'standalone']);
+  });
 });
 
 describe('parseJsonMemoryFile', () => {
