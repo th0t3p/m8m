@@ -504,9 +504,7 @@ async function renderMemories() {
   const fileSection = el('section', { class: 'mem-section' });
   fileSection.appendChild(el('h2', { class: 'section-title', text: `File memories (${files.length})` }));
   if (files.length) {
-    const list = el('div', { class: 'doc-list' });
-    for (const d of files) list.appendChild(documentCard(d));
-    fileSection.appendChild(list);
+    fileSection.appendChild(fileMemoriesTable(files));
   } else {
     fileSection.appendChild(el('div', { class: 'meta', text: 'None yet — imported markdown/json memory files land here. Run "m8m scan" or "m8m import <file>".' }));
   }
@@ -693,36 +691,67 @@ async function renderDiff() {
 
 /* -------------------------------------------------------------- documents */
 
-function documentCard(d) {
-  const card = el('div', { class: 'card doc-card' });
-  const titleLine = el('div', { class: 'doc-titleline' });
-  titleLine.appendChild(el('strong', { text: d.file_name }));
-  const meta = [platform(d.source_platform), `v${d.version}`];
-  if (d.flags_summary && d.flags_summary.length) meta.push(`${d.flags_summary.length} flagged`);
-  titleLine.appendChild(el('span', { class: 'meta', text: meta.join(' · ') }));
-  card.appendChild(titleLine);
-  card.appendChild(el('div', { class: 'meta', text: `${d.file_path} · ${timeAgo(d.last_modified || d.last_seen)}` }));
+function fileMemoriesTable(files) {
+  const table = el('table');
+  table.appendChild(el('thead', {},
+    el('tr', {},
+      el('th', { text: 'File' }),
+      el('th', { text: 'Provider' }),
+      el('th', { class: 'num', text: 'Nodes' }),
+      el('th', { text: 'Flags' }),
+      el('th', { text: 'Version' }),
+      el('th', { text: 'Modified' }),
+      el('th', { class: 'num', text: 'Actions' }),
+    ),
+  ));
 
-  const body = el('div', { class: 'doc-body' });
-  const actions = el('div', { class: 'row', style: 'margin-top:8px' },
-    el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'tree', e.currentTarget) }, 'Tree'),
-    el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'raw', e.currentTarget) }, 'Raw'),
-  );
-  card.appendChild(actions);
-  card.appendChild(body);
-  return card;
+  const tbody = el('tbody');
+  for (const d of files) {
+    const body = el('div', { class: 'doc-body' });
+    const detailRow = el('tr', { class: 'doc-detail-row', style: 'display:none' },
+      el('td', { colspan: '7' }, body),
+    );
+
+    const actions = el('div', { class: 'row-actions' },
+      el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'tree', e.currentTarget, detailRow) }, 'Tree'),
+      el('button', { class: 'btn ghost doc-toggle', onclick: (e) => toggleDocView(d, body, 'raw', e.currentTarget, detailRow) }, 'Raw'),
+    );
+
+    tbody.appendChild(el('tr', {},
+      el('td', {},
+        el('div', { class: 'cell-content', text: d.file_name }),
+        el('div', { class: 'cell-sub' },
+          el('span', { class: 'id', text: d.id.slice(0, 8), title: d.id }),
+          el('span', { class: 'meta', text: d.file_path }),
+        ),
+      ),
+      el('td', {}, badge(d.provider || platform(d.source_platform))),
+      el('td', { class: 'num', text: String(d.node_count ?? 0) }),
+      el('td', {}, el('div', { class: 'flag-list' },
+        ...(d.flags_summary && d.flags_summary.length ? flagBadges(d.flags_summary) : [el('span', { class: 'meta', text: '—' })]),
+      )),
+      el('td', {}, badge(`v${d.version}`, 'mono', { mono: true })),
+      el('td', { class: 'meta', text: timeAgo(d.last_modified || d.last_seen) }),
+      el('td', { class: 'num' }, actions),
+    ));
+    tbody.appendChild(detailRow);
+  }
+  table.appendChild(tbody);
+  return el('div', { class: 'table-wrap' }, table);
 }
 
-async function toggleDocView(d, body, kind, btn) {
+async function toggleDocView(d, body, kind, btn, detailRow) {
   // Clicking the currently-open view hides it; clicking the other switches.
   if (body.dataset.view === kind) {
     body.innerHTML = '';
     delete body.dataset.view;
     btn.classList.remove('active');
+    if (detailRow) detailRow.style.display = 'none';
     return;
   }
   body.innerHTML = '';
   body.dataset.view = kind;
+  if (detailRow) detailRow.style.display = '';
   for (const b of btn.parentElement.querySelectorAll('.doc-toggle')) b.classList.remove('active');
   btn.classList.add('active');
 
