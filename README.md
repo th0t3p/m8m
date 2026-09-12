@@ -91,7 +91,14 @@ m8m audit
 | `m8m dismiss <id>` | Clear flags + dismiss |
 | `m8m clear [-f]` | Clear all stored memories (soft-delete) |
 | `m8m import <file> [--source claude\|chatgpt\|local] [--platform <p>]` | Import Claude/ChatGPT/local file |
+| `m8m docs` | List imported documents |
+| `m8m docs show <id>` | Show a document tree |
+| `m8m docs raw <id>` | Print a document's raw content |
+| `m8m docs diff <id>` | Show a document's change history |
 | `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
+| `m8m providers` | List scan providers (vendor memory paths) |
+| `m8m providers add <name> <path> [--platform <p>] [--dir] [--ext <e>] [--desc <d>]` | Add a vendor scan target |
+| `m8m providers rm <name>` | Remove a vendor |
 | `m8m snapshot [--platform <p>]` | Manual snapshot for diffing |
 | `m8m diff [--since "2 hours ago"] [--snapshot <id1> <id2>]` | Show changes since a snapshot or time |
 | `m8m audit [--severity critical] [--resolved]` | List security events |
@@ -209,16 +216,48 @@ m8m dashboard
 
 Then open http://localhost:8808.
 
-Four views: **Timeline**, **Memories**, **Security**, and **Diff**.
+Five views: **Timeline**, **Memories**, **Documents**, **Security**, and **Diff**.
 
 ## Configuration
 
-Config lives at `~/.m8m/config.json` (override the directory with `$M8M_HOME`):
+Config lives at `~/.m8m/config.json` (override the directory with `$M8M_HOME`).
+It has two lists that control where m8m looks for vendor memory files:
+
+- **`providers`** — the agent harnesses `m8m scan` discovers. Each entry names
+  a vendor and lists the files/directories that hold its memories.
+- **`watch_paths`** — the paths `m8m watch` monitors for changes in real time.
 
 ```json
 {
   "db_path": "~/.m8m/m8m.db",
-  "watch_paths": ["~/.claude/memories", "./.claude/MEMORY.md", "./AGENTS.md", "./MEMORY.md"],
+  "watch_paths": [
+    "~/.claude/memories",
+    "./.claude/MEMORY.md",
+    "./AGENTS.md",
+    "./MEMORY.md",
+    "~/.codex/memories",
+    "~/.hindsight",
+    "~/.basic-memory"
+  ],
+  "providers": [
+    {
+      "name": "Claude Code",
+      "platform": "claude_code",
+      "targets": [
+        { "path": "~/.claude/CLAUDE.md", "description": "User-level instructions" },
+        { "path": "~/.claude/memories", "description": "User memories directory", "isDir": true, "extensions": [".md", ".json", ".txt"] },
+        { "path": "./CLAUDE.md", "description": "Project-level instructions" }
+      ]
+    },
+    {
+      "name": "Codex",
+      "platform": "local_file",
+      "targets": [
+        { "path": "~/.codex/memories", "description": "Native memory directory", "isDir": true, "extensions": [".md", ".json", ".txt"] },
+        { "path": "~/.codex/AGENTS.md", "description": "Global agent rules" }
+      ]
+    }
+  ],
   "dashboard_port": 8808,
   "auto_snapshot_interval_minutes": 60,
   "trust_levels": {
@@ -233,6 +272,53 @@ Config lives at `~/.m8m/config.json` (override the directory with `$M8M_HOME`):
   }
 }
 ```
+
+A `providers` entry has:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | string | Vendor label recorded on each imported document (e.g. `"Claude Code"`) |
+| `platform` | string | Provenance platform: `claude_code`, `claude_desktop`, `cursor`, `local_file`, … |
+| `targets` | array | Files/directories to scan for this vendor |
+
+Each object in `targets` has:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `path` | string | File or directory; `~` expands to your home dir, `./` is the project cwd |
+| `description` | string | Human-readable note shown by `m8m scan` / `m8m providers` |
+| `isDir` | boolean | `true` to scan a directory (default: treat as a single file) |
+| `extensions` | string[] | For `isDir` targets, only import these extensions (e.g. `[".md", ".json"]`) |
+
+### Add your own vendor
+
+Append an object to the `providers` array in `~/.m8m/config.json`, then run
+`m8m scan`:
+
+```json
+{
+  "name": "My Agent",
+  "platform": "local_file",
+  "targets": [
+    { "path": "~/.my-agent/memories", "description": "My agent's memory dir", "isDir": true, "extensions": [".md", ".json"] }
+  ]
+}
+```
+
+Or do it from the CLI without editing JSON:
+
+```bash
+m8m providers add "My Agent" "~/.my-agent/memories" --dir --ext .md,.json --desc "My agent's memory dir"
+m8m providers                    # list what's configured
+m8m providers rm "My Agent"      # remove it
+```
+
+> **Where the built-in defaults live:** the out-of-the-box vendor list for
+> `m8m scan` is `src/core/providers.ts` in this repo; the `providers` array in
+> `~/.m8m/config.json` **replaces** it, so you can trim or fully customize the
+> list. The file watcher's built-in paths are `DEFAULT_WATCH_PATHS` +
+> `HOME_WATCH_PATHS` in `src/watcher/watcher.ts`; the `watch_paths` array in
+> the config **adds to** those.
 
 ## Analysis
 
