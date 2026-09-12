@@ -141,6 +141,9 @@ describe('db — stats', () => {
     expect(s.file).toBe(1);
     expect(s.total).toBe(2);
     expect(s.file_nodes).toBe(1);
+    // active/quarantined/flagged are agent-only (file memories don't count).
+    expect(s.active).toBe(1);
+    expect(s.flagged).toBe(0);
     expect(s.by_platform.claude_code).toBe(1);
     expect(s.by_platform.local_file).toBe(1);
   });

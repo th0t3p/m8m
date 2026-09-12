@@ -119,15 +119,22 @@ $ m8m status
 
   m8m — Memory Observatory
   ─────────────────────────
-  Total memories:     142
-  Active:             138
-  Quarantined:          2
-  Flagged:              4
+
+  Agent memories
+    Total:        138
+    Active:       136
+    Quarantined:    2
+    Flagged:        4
+
+  File memories
+    Files:          3
+    Nodes:         120
+    Flagged:        9
 
   By platform:
-    claude_code:       89
-    claude_web:        41
-    chatgpt_web:       12
+    claude_code        89
+    claude_web         41
+    chatgpt_web        12
 
   Security events:      3 unresolved
 ```

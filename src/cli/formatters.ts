@@ -37,16 +37,25 @@ export function statusColor(status: string): string {
 
 export function formatStatBlock(stats: M8mStats, unresolvedEvents: number): string {
   const lines: string[] = [];
+  const row = (label: string, value: string | number): string => `    ${label.padEnd(13)} ${value}`;
+
   lines.push('');
   lines.push(chalk.bold('  m8m — Memory Observatory'));
   lines.push(chalk.gray('  ─────────────────────────'));
-  lines.push(`  Total memories:     ${stats.total}${stats.file ? `   (${stats.agent} agent + ${stats.file} file)` : ''}`);
-  lines.push(`  Active:             ${stats.active}`);
-  lines.push(`  Quarantined:        ${stats.quarantined}`);
-  lines.push(`  Flagged:            ${stats.flagged}`);
-  if (stats.file) {
-    lines.push(`  File memories:      ${stats.file}   (${stats.file_nodes} nodes, ${stats.file_flagged} flagged)`);
-  }
+
+  lines.push('');
+  lines.push(chalk.bold('  Agent memories'));
+  lines.push(row('Total:', stats.agent));
+  lines.push(row('Active:', stats.active));
+  lines.push(row('Quarantined:', stats.quarantined));
+  lines.push(row('Flagged:', stats.flagged));
+
+  lines.push('');
+  lines.push(chalk.bold('  File memories'));
+  lines.push(row('Files:', stats.file));
+  lines.push(row('Nodes:', stats.file_nodes));
+  lines.push(row('Flagged:', stats.file_flagged));
+
   lines.push('');
   lines.push(chalk.bold('  By platform:'));
   for (const [k, v] of Object.entries(stats.by_platform).sort((a, b) => b[1] - a[1])) {

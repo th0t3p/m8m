@@ -123,14 +123,14 @@ export interface SecurityEventFilters {
 }
 
 export interface M8mStats {
-  total: number;
-  active: number;
-  quarantined: number;
-  flagged: number;
-  agent: number;         // flat memory_entries (MCP facts)
-  file: number;          // memory_documents (file memories)
-  file_nodes: number;    // total nodes across file memories
-  file_flagged: number;  // flagged nodes across file memories
+  total: number;          // agent + file
+  active: number;         // agent memories with status 'active'
+  quarantined: number;    // agent memories with status 'quarantined'
+  flagged: number;        // agent memories carrying at least one flag
+  agent: number;          // flat memory_entries (MCP facts)
+  file: number;           // memory_documents (file memories)
+  file_nodes: number;     // total nodes across file memories
+  file_flagged: number;   // flagged nodes across file memories
   by_platform: Record<string, number>;
   by_source_type: Record<string, number>;
   by_category: Record<string, number>;

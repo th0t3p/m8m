@@ -711,15 +711,11 @@ export function getStats(): M8mStats {
 
   return {
     total: agent + file,
-    active:
-      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'active'`) +
-      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE status = 'active'`),
-    quarantined:
-      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'quarantined'`) +
-      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE status = 'quarantined'`),
-    flagged:
-      count(`SELECT COUNT(*) AS c FROM memory_entries WHERE json_array_length(flags) > 0`) +
-      count(`SELECT COUNT(*) AS c FROM memory_documents WHERE json_array_length(flags_summary) > 0`),
+    // `active`/`quarantined`/`flagged` describe agent memories only (file
+    // memories have no quarantine/status lifecycle — see file_* fields).
+    active: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'active'`),
+    quarantined: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE status = 'quarantined'`),
+    flagged: count(`SELECT COUNT(*) AS c FROM memory_entries WHERE json_array_length(flags) > 0`),
     agent,
     file,
     file_nodes: count(`SELECT COUNT(*) AS c FROM memory_nodes`),
