@@ -34,9 +34,21 @@ describe('parseMarkdownMemoryFile', () => {
     expect(out[2].content).toBe('done');
   });
 
-  it('joins shell line continuations (trailing backslash)', () => {
-    const out = parseMarkdownMemoryFile(['cmd one \\', 'continuation', 'standalone'].join('\n'));
-    expect(out.map((p) => p.content)).toEqual(['cmd one continuation', 'standalone']);
+  it('joins shell line continuations within list items', () => {
+    const out = parseMarkdownMemoryFile(['- cmd one \\', '  continued', '- standalone'].join('\n'));
+    expect(out.map((p) => p.content)).toEqual(['cmd one continued', 'standalone']);
+  });
+
+  it('joins wrapped prose lines into a single paragraph', () => {
+    const md = [
+      'Project guidance. These apply to every project unless a',
+      "project's own file says otherwise.",
+      '',
+      '- User prefers dark mode',
+    ].join('\n');
+    const out = parseMarkdownMemoryFile(md);
+    expect(out[0].content).toBe("Project guidance. These apply to every project unless a project's own file says otherwise.");
+    expect(out[1].content).toBe('User prefers dark mode');
   });
 });
 

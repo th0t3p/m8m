@@ -17,11 +17,19 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
   let fenceBuffer: string[] = [];
   let indentBuffer: string[] = [];
   let indentStart = 0;
+  let paraBuffer: string[] = [];
+  let paraStart = 0;
 
   const flushIndent = () => {
     if (indentBuffer.length) {
       pushLine(out, indentBuffer.join('\n'), indentBuffer.join('\n'), indentStart, section);
       indentBuffer = [];
+    }
+  };
+  const flushPara = () => {
+    if (paraBuffer.length) {
+      pushLine(out, paraBuffer.join(' '), paraBuffer.join(' '), paraStart, section);
+      paraBuffer = [];
     }
   };
 
@@ -33,6 +41,7 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
 
     if (line.startsWith('```')) {
       flushIndent();
+      flushPara();
       if (inFence) {
         pushLine(out, fenceBuffer.join('\n'), raw, i + 1, section);
         fenceBuffer = [];
@@ -51,6 +60,7 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
 
     if (!line) {
       flushIndent();
+      flushPara();
       i++;
       continue;
     }
@@ -58,6 +68,7 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
     // Indented code block (4+ spaces or a tab): join consecutive indented
     // lines into a single entry so multi-line snippets stay together.
     if (isIndented) {
+      flushPara();
       if (indentBuffer.length === 0) indentStart = i + 1;
       indentBuffer.push(raw.replace(/^( {4}|\t)/, ''));
       i++;
@@ -66,28 +77,40 @@ export function parseMarkdownMemoryFile(content: string): ParsedMemory[] {
     flushIndent();
 
     if (/^#{1,6}\s+/.test(line)) {
+      flushPara();
       section = line.replace(/^#{1,6}\s+/, '').trim();
       i++;
       continue;
     }
-    if (/^(---|\*\*\*|___)\s*$/.test(line)) { i++; continue; }
-    if (/^\s*[-*>]+\s*$/.test(line)) { i++; continue; }
+    if (/^(---|\*\*\*|___)\s*$/.test(line)) { flushPara(); i++; continue; }
+    if (/^\s*[-*>]+\s*$/.test(line)) { flushPara(); i++; continue; }
 
-    let text = line;
-    if (/^[-*+]\s+/.test(text)) text = text.replace(/^[-*+]\s+/, '');
-    else if (/^\d+[.)]\s+/.test(text)) text = text.replace(/^\d+[.)]\s+/, '');
+    // Bullet / numbered list item → its own entry.
+    if (/^[-*+]\s+/.test(line) || /^\d+[.)]\s+/.test(line)) {
+      flushPara();
+      let text = line;
+      if (/^[-*+]\s+/.test(text)) text = text.replace(/^[-*+]\s+/, '');
+      else text = text.replace(/^\d+[.)]\s+/, '');
 
-    // Join shell line continuations (a trailing backslash continues the line).
-    const startLine = i + 1;
-    while (text.endsWith('\\') && i + 1 < lines.length) {
+      // Join shell line continuations (a trailing backslash continues the line).
+      const startLine = i + 1;
+      while (text.endsWith('\\') && i + 1 < lines.length) {
+        i++;
+        text = text.slice(0, -1).trimEnd() + ' ' + lines[i].trim();
+      }
+      pushLine(out, text, raw, startLine, section);
       i++;
-      text = text.slice(0, -1).trimEnd() + ' ' + lines[i].trim();
+      continue;
     }
-    pushLine(out, text, raw, startLine, section);
+
+    // Plain prose line → accumulate into a paragraph (wrapped lines join).
+    if (paraBuffer.length === 0) paraStart = i + 1;
+    paraBuffer.push(line);
     i++;
   }
 
   flushIndent();
+  flushPara();
   if (inFence && fenceBuffer.length) {
     pushLine(out, fenceBuffer.join('\n'), '', lines.length, section);
   }
