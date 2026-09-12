@@ -141,6 +141,8 @@ export const SCHEMA_STATEMENTS: string[] = [
     change_type TEXT NOT NULL,
     old_hash TEXT,
     new_hash TEXT,
+    old_content TEXT,
+    new_content TEXT,
     nodes_added INTEGER DEFAULT 0,
     nodes_modified INTEGER DEFAULT 0,
     nodes_deleted INTEGER DEFAULT 0,

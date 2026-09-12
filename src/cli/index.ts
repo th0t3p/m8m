@@ -385,6 +385,39 @@ function renderDocTree(nodes: MemoryNode[], prefix = ''): string[] {
   return lines;
 }
 
+/** Minimal LCS line diff, returned as `  kept`, `- removed`, `+ added` lines. */
+function diffLines(oldText: string, newText: string): string[] {
+  const a = oldText.split('\n');
+  const b = newText.split('\n');
+  const n = a.length;
+  const m = b.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out: string[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      out.push(`   ${a[i]}`);
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push(` - ${a[i]}`);
+      i++;
+    } else {
+      out.push(` + ${b[j]}`);
+      j++;
+    }
+  }
+  while (i < n) out.push(` - ${a[i++]}`);
+  while (j < m) out.push(` + ${b[j++]}`);
+  return out;
+}
+
 const filesCmd = program
   .command('files')
   .description('List imported memory files')
@@ -464,6 +497,12 @@ filesCmd.command('diff <id>').description('Show memory file change history').act
   }
   for (const c of cl) {
     console.log(`  ${c.changed_at}  ${c.change_type.padEnd(8)}  +${c.nodes_added} ~${c.nodes_modified} -${c.nodes_deleted}  (${c.detected_by})`);
+    if (c.change_type === 'modified' && c.old_content !== undefined && c.new_content !== undefined) {
+      const diff = diffLines(c.old_content, c.new_content);
+      const shown = diff.length > 80 ? diff.slice(0, 80) : diff;
+      for (const line of shown) console.log(`    ${line}`);
+      if (diff.length > 80) console.log(`    … ${diff.length - 80} more changed line(s) omitted`);
+    }
   }
 });
 

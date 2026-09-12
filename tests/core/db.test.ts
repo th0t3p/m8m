@@ -199,7 +199,13 @@ describe('db — documents', () => {
     expect(b.id).toBe(a.id);
     expect(b.version).toBe(2);
     expect(b.raw_content).toBe('two');
-    expect(getDocumentChangelog(a.id)).toHaveLength(2);
+    const cl = getDocumentChangelog(a.id);
+    expect(cl).toHaveLength(2);
+    // The "modified" entry stores the before/after raw content for diffing.
+    const modified = cl.find((c) => c.change_type === 'modified');
+    expect(modified).toBeTruthy();
+    expect(modified!.old_content).toBe('one');
+    expect(modified!.new_content).toBe('two');
   });
 
   it('getDocumentWithNodes returns a nested tree', () => {

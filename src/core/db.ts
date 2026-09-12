@@ -178,6 +178,8 @@ function migrateSchema(instance: Database.Database): void {
   };
   ensureColumn('memory_documents', 'provider', `ALTER TABLE memory_documents ADD COLUMN provider TEXT`);
   ensureColumn('security_events', 'document_id', `ALTER TABLE security_events ADD COLUMN document_id TEXT`);
+  ensureColumn('document_changelog', 'old_content', `ALTER TABLE document_changelog ADD COLUMN old_content TEXT`);
+  ensureColumn('document_changelog', 'new_content', `ALTER TABLE document_changelog ADD COLUMN new_content TEXT`);
 }
 
 export function getDb(): Database.Database {
@@ -763,6 +765,8 @@ function rowToDocChangelog(r: any): DocumentChangelog {
     change_type: r.change_type,
     old_hash: r.old_hash ?? undefined,
     new_hash: r.new_hash ?? undefined,
+    old_content: r.old_content ?? undefined,
+    new_content: r.new_content ?? undefined,
     nodes_added: r.nodes_added ?? 0,
     nodes_modified: r.nodes_modified ?? 0,
     nodes_deleted: r.nodes_deleted ?? 0,
@@ -911,9 +915,9 @@ export function upsertDocument(
     for (const h of oldHashes) if (!newHashes.has(h)) deleted++;
 
     d.prepare(
-      `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
-       VALUES (?, ?, 'modified', ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(randomUUID(), existing.id, existing.file_hash, fileHash, added, modified, deleted, ts, detectedBy);
+      `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, old_content, new_content, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
+       VALUES (?, ?, 'modified', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(randomUUID(), existing.id, existing.file_hash, fileHash, existing.raw_content, rawContent, added, modified, deleted, ts, detectedBy);
 
     void flagged;
     return getDocument(existing.id)!;
@@ -933,9 +937,9 @@ export function upsertDocument(
   updateDocumentSummary(id);
 
   d.prepare(
-    `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
-     VALUES (?, ?, 'created', NULL, ?, ?, 0, 0, ?, ?)`,
-  ).run(randomUUID(), id, fileHash, newHashes.size, ts, detectedBy);
+    `INSERT INTO document_changelog (id, document_id, change_type, old_hash, new_hash, old_content, new_content, nodes_added, nodes_modified, nodes_deleted, changed_at, detected_by)
+     VALUES (?, ?, 'created', NULL, ?, NULL, ?, ?, 0, 0, ?, ?)`,
+  ).run(randomUUID(), id, fileHash, rawContent, newHashes.size, ts, detectedBy);
 
   return getDocument(id)!;
 }

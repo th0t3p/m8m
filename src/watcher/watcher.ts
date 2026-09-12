@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import chokidar from 'chokidar';
-import { getDb } from '../core/db.js';
+import { getAllDocuments, getDb } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
 import { importFileAsDocument } from '../core/importer.js';
 import { expandHome } from '../core/config.js';
@@ -93,6 +93,11 @@ export async function startWatcher(config: M8mConfig): Promise<void> {
     for (const target of provider.targets) {
       paths.add(resolve(expandHome(target.path)));
     }
+  }
+  // Also watch every file already imported as a file memory, so edits to any
+  // loaded markdown/json are picked up and re-imported as a new version.
+  for (const doc of getAllDocuments()) {
+    paths.add(resolve(expandHome(doc.file_path)));
   }
 
   const existingPaths = [...paths].filter((p) => existsSync(p));

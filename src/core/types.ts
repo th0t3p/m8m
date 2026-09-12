@@ -204,6 +204,8 @@ export interface DocumentChangelog {
   change_type: 'created' | 'modified' | 'deleted';
   old_hash?: string;
   new_hash?: string;
+  old_content?: string;
+  new_content?: string;
   nodes_added: number;
   nodes_modified: number;
   nodes_deleted: number;
