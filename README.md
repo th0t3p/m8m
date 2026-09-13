@@ -419,6 +419,10 @@ Example findings from `m8m audit`:
 - `npm test` — run the vitest suite
 - `npm run dev` — tsx watch on the CLI (see `scripts/dev.sh`)
 
+## Documentation
+
+- [Architecture & technical decisions](docs/ARCHITECTURE.md) — why m8m is built the way it is.
+
 ## Support
 
 If m8m is useful to you, consider buying me a coffee:
