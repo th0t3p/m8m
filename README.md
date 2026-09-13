@@ -7,13 +7,16 @@
 AI memory observability, provenance & security. Eight eyes. Nothing gets past.
 
 m8m monitors what your AI agents remember about you — where each memory came
-from, what changed, and whether anything looks suspicious. Four cooperating
-pieces share one local SQLite database:
+from, what changed, and whether anything looks suspicious. The core pieces
+share one local SQLite database:
 
 - **MCP server** — live memory operations as your agent works
 - **File watcher** — tracks local memory files (`MEMORY.md`, `CLAUDE.md`, …);
   it runs automatically inside the MCP server (and can also run standalone via
   `m8m watch`)
+- **Security analysis** — pattern-based scanning of every memory for
+  credentials, instructions, URLs/emails, and hidden characters
+- **Snapshots & rollback** — point-in-time baselines to diff drift and roll back
 - **CLI** — query and audit memory state from the terminal
 - **Local dashboard** — a dark, browser-based visualization
 
