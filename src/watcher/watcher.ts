@@ -4,12 +4,14 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import chokidar from 'chokidar';
-import { getAllDocuments, getDb } from '../core/db.js';
+import chalk from 'chalk';
+import { getAllDocuments, getDb, getDocumentByPath } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
 import { importFileAsDocument } from '../core/importer.js';
 import { expandHome } from '../core/config.js';
-import type { M8mConfig, SourcePlatform } from '../core/types.js';
+import type { M8mConfig, MemoryFlag, SourcePlatform } from '../core/types.js';
 import { detectFileFormat } from './parsers.js';
+import { header, watching } from '../cli/ui.js';
 
 const DEFAULT_WATCH_PATHS = [
   './.claude/MEMORY.md',
@@ -40,6 +42,38 @@ function inferPlatform(path: string): string {
 function isConfigFile(path: string): boolean {
   const base = basename(path).toLowerCase();
   return /(^|[_.-])(config|settings)([_.-]|$)/.test(base) || /\.conf([_.-]|$)/.test(base);
+}
+
+function shortProvider(platform: string): string {
+  if (platform === 'claude_code' || platform === 'claude_desktop' || platform === 'claude_web') return 'Claude';
+  if (platform === 'cursor') return 'Cursor';
+  if (platform === 'chatgpt_web') return 'ChatGPT';
+  return 'file';
+}
+
+function timeStamp(): string {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+}
+
+/** First line in the new content that isn't in the old content (rough "added" preview). */
+function firstAddedLine(oldContent: string, newContent: string): string {
+  if (!oldContent) return newContent.split('\n')[0] ?? '';
+  const oldLines = new Set(oldContent.split('\n'));
+  for (const line of newContent.split('\n')) {
+    if (!oldLines.has(line)) return line;
+  }
+  return '';
+}
+
+/** Most-severe flag, or null when the file is clean. */
+function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+  let top: MemoryFlag | null = null;
+  for (const f of flags) {
+    if (!top || (order[f.severity ?? 'info'] ?? 2) < (order[top.severity ?? 'info'] ?? 2)) top = f;
+  }
+  return top;
 }
 
 function upsertWatchTarget(path: string, targetType: 'file' | 'directory', format: string, platform: string): void {
@@ -73,11 +107,26 @@ function handleFileChange(path: string, platform: string): void {
     | undefined;
   if (target?.last_hash === hash) return;
 
-  const format = detectFileFormat(path);
+  const oldContent = getDocumentByPath(path)?.raw_content ?? '';
   const result = importFileAsDocument(path, null, platform as SourcePlatform, 'file_watcher');
-
   updateWatchTarget(path, hash);
-  console.error(`[m8m watcher] ${path}: 1 memory file, ${result.total_nodes} nodes (platform=${platform}, format=${format})`);
+
+  const flags = getDocumentByPath(path)?.flags_summary ?? [];
+  const top = topFlag(flags);
+  const added = firstAddedLine(oldContent, content);
+  const file = basename(path);
+  const provider = shortProvider(platform);
+
+  console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white(provider.padEnd(10))} ${file} modified`);
+  if (added) console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(added.slice(0, 44))}"`);
+  if (top?.severity === 'critical') {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold('🔴 CRITICAL')}${chalk.dim(` — ${top.type}`)}`);
+  } else if (top?.severity === 'warning') {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.yellow('⚠ WARNING')}${chalk.dim(` — ${top.type}`)}`);
+  } else {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.dim('○ clean')}`);
+  }
+  console.error(`  ${' '.repeat(9)}│`);
 }
 
 /** Start watching configured memory files for changes. Long-running. */
@@ -102,7 +151,9 @@ export async function startWatcher(config: M8mConfig): Promise<() => void> {
 
   const existingPaths = [...paths].filter((p) => existsSync(p));
   if (existingPaths.length === 0) {
-    console.error('[m8m watcher] No watch paths exist. Nothing to monitor.');
+    console.error(header('File Watcher'));
+    console.error('');
+    console.error('  No watch paths exist. Nothing to monitor.');
     return () => {};
   }
 
@@ -127,7 +178,14 @@ export async function startWatcher(config: M8mConfig): Promise<() => void> {
   const watcher = chokidar.watch(existingPaths, { ignoreInitial: true, persistent: true });
   watcher.on('change', (p) => handleFileChange(p, inferPlatform(p)));
   watcher.on('add', (p) => handleFileChange(p, inferPlatform(p)));
-  console.error(`[m8m watcher] Watching ${existingPaths.length} path(s). Ctrl-C to stop.`);
+
+  const providerCount = new Set(existingPaths.map((p) => shortProvider(inferPlatform(p)))).size;
+  console.error(header('File Watcher'));
+  console.error('');
+  console.error(`  ${chalk.dim(`Watching ${existingPaths.length} path(s) across ${providerCount} providers. Ctrl-C to stop.`)}`);
+  console.error('');
+  console.error(watching('watching...'));
+
   return () => {
     void watcher.close();
   };

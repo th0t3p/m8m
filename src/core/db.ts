@@ -949,6 +949,8 @@ function insertDocumentNodes(
   depth: number,
   position: number,
   hashes: Set<string>,
+  fileName: string,
+  provider: string | null,
   parentHeading?: string,
 ): { flagged: number } {
   const d = requireDb();
@@ -989,6 +991,9 @@ function insertDocumentNodes(
       createSecurityEvents({ document_id: documentId }, analysis.flags, {
         node_content: node.content,
         node_heading: node.heading ?? parentHeading ?? null,
+        file_name: fileName,
+        provider,
+        line_start: node.line_start ?? null,
       });
     }
 
@@ -1003,6 +1008,8 @@ function insertDocumentNodes(
         depth + 1,
         childPos++,
         hashes,
+        fileName,
+        provider,
         node.heading ?? parentHeading,
       ).flagged;
     }
@@ -1071,7 +1078,7 @@ export function upsertDocument(
     d.prepare(`DELETE FROM memory_nodes WHERE document_id = ?`).run(existing.id);
 
     const newHashes = new Set<string>();
-    const { flagged } = insertDocumentNodes(existing.id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes);
+    const { flagged } = insertDocumentNodes(existing.id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes, existing.file_name, provider ?? existing.provider);
     updateDocumentSummary(existing.id);
 
     let added = 0, modified = 0, deleted = 0;
@@ -1098,7 +1105,7 @@ export function upsertDocument(
   ).run(id, filePath, fileName, fileHash, fileFormat, parsedDoc.title ?? null, rawContent, provider, platform, trustLevel, ts, ts);
 
   const newHashes = new Set<string>();
-  insertDocumentNodes(id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes);
+  insertDocumentNodes(id, parsedDoc.nodes, platform, trustLevel, null, 0, 0, newHashes, fileName, provider);
   updateDocumentSummary(id);
 
   d.prepare(

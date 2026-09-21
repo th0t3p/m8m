@@ -1,5 +1,7 @@
 // Terminal output formatting helpers.
 
+import { dirname } from 'node:path';
+import { homedir } from 'node:os';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import type {
@@ -7,9 +9,20 @@ import type {
   MemoryDiff,
   MemoryEntry,
   M8mStats,
+  ProviderConfig,
   RollbackPreview,
   SecurityEvent,
 } from '../core/types.js';
+import type { DiscoveredMemoryFile } from '../core/scanner.js';
+import {
+  dim,
+  header,
+  inProgress,
+  pad,
+  skipped,
+  summary,
+  truncatePath,
+} from './ui.js';
 
 export function truncate(s: string, max = 60): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
@@ -186,17 +199,103 @@ export function formatRollbackPreview(preview: RollbackPreview): string {
 }
 
 export function formatSecurityEvents(events: SecurityEvent[]): string {
-  if (events.length === 0) return chalk.gray('  (no security events)');
   const lines: string[] = [];
+  lines.push(header('Security Audit'));
   lines.push('');
-  lines.push(chalk.bold('  Security Events'));
-  lines.push(chalk.gray('  ───────────────'));
+
+  if (events.length === 0) {
+    lines.push(dim('(no security events)'));
+    return lines.join('\n');
+  }
+
+  const fileCount = new Set(events.map((e) => e.document_id).filter(Boolean)).size;
+  lines.push(dim(fileCount ? `${events.length} events across ${fileCount} file(s)` : `${events.length} events`));
+  lines.push('');
+
   for (const e of events) {
-    const sev = e.severity === 'critical' ? chalk.red('🔴 CRITICAL') : e.severity === 'warning' ? chalk.yellow('⚠ WARNING') : chalk.cyan('ℹ INFO');
-    lines.push(`${sev} [${e.detected_at}] ${e.title}`);
-    if (e.memory_id) lines.push(chalk.gray(`     Memory: ${e.memory_id.slice(0, 8)}`));
-    if (e.details?.detail) lines.push(chalk.gray(`     ${String(e.details.detail)}`));
+    const sevIcon = e.severity === 'critical' ? '🔴' : e.severity === 'warning' ? '⚠ ' : 'ℹ ';
+    const sevWord = e.severity.toUpperCase();
+    const sevColor = e.severity === 'critical' ? chalk.red.bold : e.severity === 'warning' ? chalk.yellow : chalk.blue;
+    lines.push(`  ${sevIcon} ${sevColor(sevWord.padEnd(8))}  ${chalk.white(truncate(e.title, 42))}  ${chalk.dim(shortDate(e.detected_at))}`);
+
+    if (e.details?.detail) {
+      lines.push(`${' '.repeat(15)}${chalk.dim(truncate(String(e.details.detail), 60))}`);
+    }
+    const source = eventSource(e);
+    if (source) lines.push(`${' '.repeat(15)}${chalk.dim(source)}`);
+
     lines.push('');
   }
+
+  const counts = { critical: 0, warning: 0, info: 0 };
+  for (const e of events) counts[e.severity] = (counts[e.severity] ?? 0) + 1;
+  lines.push(summary('Summary', [
+    { text: `${counts.critical} critical`, style: counts.critical ? 'warn' : 'dim' },
+    { text: `${counts.warning} warning`, style: 'dim' },
+    { text: `${counts.info} info`, style: 'dim' },
+  ]));
+
+  return lines.join('\n');
+}
+
+function eventSource(e: SecurityEvent): string {
+  const fileName = e.details?.file_name ? String(e.details.file_name) : '';
+  const provider = e.details?.provider ? String(e.details.provider) : '';
+  const line = e.details?.line_start != null ? String(e.details.line_start) : '';
+  if (fileName) {
+    return [provider, line ? `${fileName}:${line}` : fileName].filter(Boolean).join(' › ');
+  }
+  if (e.memory_id) return `agent memory › ${e.memory_id.slice(0, 8)}`;
+  return '';
+}
+
+function shortDate(iso: string): string {
+  const d = new Date(iso);
+  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d.getDate()} ${M[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function dirLabel(path: string): string {
+  const home = homedir();
+  const dir = dirname(path);
+  const label = dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
+  return label.endsWith('/') ? label : `${label}/`;
+}
+
+/** Discovery table for `m8m scan`: one row per provider (found or not). */
+export function formatScanDiscovery(files: DiscoveredMemoryFile[], providers: ProviderConfig[]): string {
+  const byProvider = new Map<string, DiscoveredMemoryFile[]>();
+  for (const f of files) {
+    const list = byProvider.get(f.provider) ?? [];
+    list.push(f);
+    byProvider.set(f.provider, list);
+  }
+
+  const lines: string[] = [];
+  lines.push(header('Memory Scanner'));
+  lines.push('');
+  lines.push(inProgress('Scanning AI memory providers...'));
+  lines.push('');
+
+  for (const p of providers) {
+    const found = byProvider.get(p.name) ?? [];
+    if (found.length === 0) {
+      lines.push(skipped(`${pad(p.name, 20)} not found`));
+      continue;
+    }
+    const total = found.reduce((s, f) => s + f.size, 0);
+    const count = `${found.length} file${found.length === 1 ? '' : 's'}`;
+    lines.push(`  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(found[0].path), 33), 35))} ${pad(count, 9, true)} ${pad(formatBytes(total), 9, true)}`);
+  }
+
+  lines.push('');
+  lines.push(dim(`Found ${files.length} file(s) across ${byProvider.size} provider(s)`));
   return lines.join('\n');
 }

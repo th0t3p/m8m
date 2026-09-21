@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatDiscovery,
   groupByProvider,
   isImportablePath,
   type DiscoveredMemoryFile,
@@ -35,15 +34,5 @@ describe('groupByProvider', () => {
     const groups = groupByProvider(files);
     expect([...groups.keys()]).toEqual(['A', 'B']);
     expect(groups.get('B')?.length).toBe(2);
-  });
-});
-
-describe('formatDiscovery', () => {
-  it('renders a header and provider sections', () => {
-    const out = formatDiscovery([file('/tmp/MEMORY.md', 'Generic')]);
-    expect(out).toContain('m8m — Memory Scanner');
-    expect(out).toContain('Found 1 file(s) across 1 provider(s)');
-    expect(out).toContain('Generic:');
-    expect(out).toContain('/tmp/MEMORY.md');
   });
 });

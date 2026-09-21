@@ -98,31 +98,6 @@ export function groupByProvider(files: DiscoveredMemoryFile[]): Map<string, Disc
   return new Map([...map.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
-}
-
-export function formatDiscovery(files: DiscoveredMemoryFile[]): string {
-  const groups = groupByProvider(files);
-  const lines: string[] = [
-    '  m8m — Memory Scanner',
-    '  ─────────────────────',
-    `  Found ${files.length} file(s) across ${groups.size} provider(s)`,
-  ];
-  for (const [provider, providerFiles] of groups) {
-    lines.push('');
-    lines.push(`  ${provider}:`);
-    for (const f of providerFiles) {
-      lines.push(`    ${f.path}`);
-      lines.push(`      ${f.description} (${formatBytes(f.size)})`);
-    }
-  }
-  return lines.join('\n');
-}
-
 const IMPORTABLE_EXTENSIONS = new Set(['.md', '.json', '.txt']);
 
 /** True if a discovered file should be auto-imported (memory file, not config). */

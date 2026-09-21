@@ -5,6 +5,7 @@ import { Command } from 'commander';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createInterface } from 'node:readline';
+import chalk from 'chalk';
 import { configPath, initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
   applyDocumentRollback,
@@ -37,7 +38,7 @@ import {
   importClaudeExport,
   importFileAsDocument,
 } from '../core/importer.js';
-import { formatDiscovery, isImportablePath, scanForMemoryFiles } from '../core/scanner.js';
+import { isImportablePath, scanForMemoryFiles } from '../core/scanner.js';
 import { startDashboard } from '../dashboard/server.js';
 import { startMcpServer } from '../mcp/server.js';
 import { addM8mToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
@@ -47,10 +48,12 @@ import {
   formatMemoryDetail,
   formatMemoryList,
   formatRollbackPreview,
+  formatScanDiscovery,
   formatSecurityEvents,
   formatStatBlock,
   truncate,
 } from './formatters.js';
+import { dim, inProgress, pad, summary } from './ui.js';
 import type { MemoryNode, MemoryStatus, ProviderConfig, SourcePlatform } from '../core/types.js';
 import { VERSION } from '../version.js';
 
@@ -59,7 +62,8 @@ const program = new Command();
 program
   .name('m8m')
   .description('AI memory observability, provenance & security. Eight eyes. Nothing gets past.')
-  .version(VERSION);
+  .version(VERSION)
+  .option('--no-color', 'Disable colored output');
 
 function ensureDb() {
   const config = loadConfig();
@@ -319,39 +323,50 @@ program
   .action(async (opts: { dryRun?: boolean; yes?: boolean }) => {
     const config = ensureDb();
     const files = scanForMemoryFiles(config.providers);
-    console.log(formatDiscovery(files));
+    console.log(formatScanDiscovery(files, config.providers));
 
     if (opts.dryRun) return;
 
     const importable = files.filter((f) => isImportablePath(f.path));
     if (importable.length === 0) {
-      console.log('\n  No importable memory files found.');
+      console.log('');
+      console.log(dim('No importable memory files found.'));
       return;
     }
 
     if (!opts.yes) {
-      const ok = await confirm(`\n  Import ${importable.length} file(s)? [y/N] `);
+      const ok = await confirm(`\n  Import ${importable.length} eligible file(s)? [y/N] `);
       if (!ok) {
         console.log('  Aborted.');
         return;
       }
     }
 
+    console.log('');
+    console.log(inProgress('Importing & analyzing...'));
+    console.log('');
+
     let importedFiles = 0;
     let nodes = 0;
     let flagged = 0;
     for (const f of importable) {
       const result = importFileAsDocument(f.path, f.provider, f.platform, 'manual_import');
-      const flagNote = result.flagged_nodes > 0 ? `, ${result.flagged_nodes} flagged ⚠` : '';
-      console.log(`  ✓ ${f.provider}: ${basename(f.path)} — 1 memory file, ${result.total_nodes} nodes${flagNote}`);
+      const flagNote = result.flagged_nodes > 0
+        ? `  ${chalk.yellow(`${result.flagged_nodes} flagged ⚠`)}`
+        : '';
+      console.log(`  ${chalk.green('✓')} ${chalk.bold.white(pad(f.provider, 14))} ${basename(f.path).padEnd(14)} ${pad(`${result.total_nodes} nodes`, 10, true)}${flagNote}`);
       importedFiles++;
       nodes += result.total_nodes;
       flagged += result.flagged_nodes;
     }
 
     console.log('');
-    console.log(`  Done: ${importedFiles} memory files imported, ${nodes} total nodes, ${flagged} flagged`);
-    if (flagged > 0) console.log('  Run `m8m audit` to review flagged entries.');
+    console.log(summary('Done', [
+      { text: `${importedFiles} files imported` },
+      { text: `${nodes} nodes` },
+      { text: `${flagged} flagged`, style: flagged ? 'warn' : 'dim' },
+    ]));
+    if (flagged > 0) console.log(dim('Run `m8m audit` to review flagged entries.'));
   });
 
 // --- Snapshot -----------------------------------------------------------
