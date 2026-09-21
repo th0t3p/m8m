@@ -239,29 +239,37 @@ body {
 .btn.ghost:hover { background: var(--elevated); color: var(--text); }
 .btn.ghost.active { background: var(--elevated); border-color: var(--accent-soft); color: var(--text); }
 
-/* Quarantine is destructive: heavier than Resolve and armed by a second click
-   (see quarantineButton). The tint comes from the signal tokens, so the
-   meaning keeps one source rather than introducing a new hue. */
-.btn.danger {
+/* Destructive row actions repeat down a table, so they stay quiet: a tint on
+   every row would make the Actions column the loudest thing on the page. */
+.btn.danger { background: transparent; border-color: var(--border); color: var(--signal-crit-text); }
+.btn.danger:hover {
+  background: color-mix(in srgb, var(--signal-crit) 12%, transparent);
+  border-color: var(--signal-crit);
+}
+
+/* On a security card the destructive action is a single decision, so it carries
+   weight and is armed by a second click (see quarantineButton). The tint comes
+   from the signal tokens rather than a new hue. */
+.event-actions .btn.danger {
   background: color-mix(in srgb, var(--signal-warn) 16%, transparent);
   border-color: color-mix(in srgb, var(--signal-warn) 40%, transparent);
   color: var(--signal-warn-text);
 }
-.btn.danger:hover {
+.event-actions .btn.danger:hover {
   background: color-mix(in srgb, var(--signal-warn) 26%, transparent);
   border-color: var(--signal-warn);
 }
-.btn.danger.crit {
+.event-actions .btn.danger.crit {
   background: color-mix(in srgb, var(--signal-crit) 16%, transparent);
   border-color: color-mix(in srgb, var(--signal-crit) 40%, transparent);
   color: var(--signal-crit-text);
 }
-.btn.danger.crit:hover {
+.event-actions .btn.danger.crit:hover {
   background: color-mix(in srgb, var(--signal-crit) 26%, transparent);
   border-color: var(--signal-crit);
 }
-.btn.danger.armed,
-.btn.danger.armed:hover {
+.event-actions .btn.danger.armed,
+.event-actions .btn.danger.armed:hover {
   background: color-mix(in srgb, var(--signal-crit) 30%, transparent);
   border-color: var(--signal-crit);
   color: var(--text);
