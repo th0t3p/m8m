@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>m8m — AI memory observability, provenance & security</title>
-<meta name="description" content="See what AI tools remember about you. Scan, audit, and control AI memory across Claude, Codex, Cursor, Windsurf, and 12+ providers.">
+<meta name="description" content="See what AI tools remember about you. Scan, audit, and control AI memory — local-first, and works with any MCP client.">
 <link rel="canonical" href="https://th0t3p.github.io/m8m/">
 <meta name="theme-color" content="#fafafe">
 
@@ -12,7 +12,7 @@
 <meta property="og:site_name" content="m8m">
 <meta property="og:url" content="https://th0t3p.github.io/m8m/">
 <meta property="og:title" content="m8m — AI memory observability, provenance &amp; security">
-<meta property="og:description" content="See what AI tools remember about you. Scan, audit, and control AI memory across Claude, Codex, Cursor, Windsurf, and 12+ providers.">
+<meta property="og:description" content="See what AI tools remember about you. Scan, audit, and control AI memory — local-first, and works with any MCP client.">
 <meta property="og:image" content="https://th0t3p.github.io/m8m/assets/og.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200">
@@ -21,7 +21,7 @@
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="m8m — AI memory observability, provenance &amp; security">
-<meta name="twitter:description" content="See what AI tools remember about you. Scan, audit, and control AI memory across Claude, Codex, Cursor, Windsurf, and 12+ providers.">
+<meta name="twitter:description" content="See what AI tools remember about you. Scan, audit, and control AI memory — local-first, and works with any MCP client.">
 <meta name="twitter:image" content="https://th0t3p.github.io/m8m/assets/og.png">
 
 <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -235,6 +235,7 @@ body {
 
 .term-prompt { color: var(--purple-400); }
 .term-cmd { color: #e2ddf8; }
+.term-text { color: #e2ddf8; }
 .term-info { color: var(--terminal-dim); }
 .term-label { color: var(--purple-400); }
 .term-ok { color: var(--terminal-green); }
@@ -334,38 +335,18 @@ body {
 }
 
 .providers h2 {
-  font-size: 0.85rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  margin-bottom: 28px;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 10px;
 }
 
-.provider-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  max-width: 640px;
+.providers-note {
+  max-width: 520px;
   margin: 0 auto;
-}
-
-.provider-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
-  font-weight: 500;
-  transition: all 0.15s;
-  background: var(--bg-card);
-}
-.provider-pill:hover {
-  border-color: var(--purple-400);
-  color: var(--purple-500);
 }
 
 /* ── CTA ── */
@@ -1012,14 +993,14 @@ footer a:hover { text-decoration: underline; }
           <path d="M12 6v6l4 2"/>
         </svg>
         <h3>Memory scanning</h3>
-        <p>Discover every memory file across Claude, Codex, Cursor, Windsurf, Cline, and 12+ AI providers in one pass.</p>
+        <p>Discover every memory file on the machine in one pass — wherever your tools keep them.</p>
       </div>
       <div class="feature-card">
         <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
         <h3>Sensitivity detection</h3>
-        <p>7 pattern-based rules flag credentials, PII, financial data, health info, and auth tokens — no LLM calls, fully local.</p>
+        <p>Pattern-based rules flag credentials, PII, financial data, health info, and auth tokens — no LLM calls, fully local.</p>
       </div>
       <div class="feature-card">
         <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1052,7 +1033,7 @@ footer a:hover { text-decoration: underline; }
           <line x1="4" y1="22" x2="4" y2="15"/>
         </svg>
         <h3>MCP server</h3>
-        <p>Expose memory audit as a tool your AI assistant can call — let Claude or Codex check its own memory footprint.</p>
+        <p>Expose memory audit as a tool your assistant can call — let it check its own memory footprint.</p>
       </div>
     </div>
   </div>
@@ -1061,21 +1042,8 @@ footer a:hover { text-decoration: underline; }
 <!-- ─── Providers ─── -->
 <section class="providers">
   <div class="container">
-    <h2>Works with your AI tools</h2>
-    <div class="provider-grid">
-      <span class="provider-pill">Claude Code</span>
-      <span class="provider-pill">Codex CLI</span>
-      <span class="provider-pill">Cursor</span>
-      <span class="provider-pill">Windsurf</span>
-      <span class="provider-pill">Cline</span>
-      <span class="provider-pill">GitHub Copilot</span>
-      <span class="provider-pill">Aider</span>
-      <span class="provider-pill">Continue</span>
-      <span class="provider-pill">Roo Code</span>
-      <span class="provider-pill">Amazon Q</span>
-      <span class="provider-pill">Ollama</span>
-      <span class="provider-pill">ChatGPT</span>
-    </div>
+    <h2>Works with any MCP client</h2>
+    <p class="providers-note">m8m runs as an MCP server. If your tool speaks MCP, it works — with no per-provider integration to wait for.</p>
   </div>
 </section>
 
@@ -1194,13 +1162,13 @@ const demos = {
     ]},
   ],
   audit: [
-    { type: 'prompt', text: '$ npx @th0t3p/m8m audit --provider claude' },
+    { type: 'prompt', text: '$ npx @th0t3p/m8m audit' },
     { type: 'blank' },
-    { type: 'info',   text: '  ◐  Auditing Claude Code memory provenance...' },
+    { type: 'info',   text: '  ◐  Auditing memory provenance across all providers...' },
     { type: 'blank' },
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Provider   ' },
-      { cls: 'term-text', text: ' Claude Code' },
+      { cls: 'term-label', text: '  Scope      ' },
+      { cls: 'term-text', text: ' all providers' },
     ]},
     { type: 'mixed', parts: [
       { cls: 'term-label', text: '  Entries    ' },
@@ -1240,7 +1208,7 @@ const demos = {
     { type: 'blank' },
     { type: 'mixed', parts: [
       { cls: 'term-ok', text: '  ✓ ' },
-      { cls: 'term-dim', text: 'Audit complete. Full report: .m8m/audit-claude-20260921.json' },
+      { cls: 'term-dim', text: 'Audit complete. Full report: .m8m/audit-20260921.json' },
     ]},
   ],
   watch: [
