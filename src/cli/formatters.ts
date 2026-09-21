@@ -264,8 +264,9 @@ function dirLabel(path: string): string {
 export interface ScanProviderStat {
   name: string;
   path: string;
-  entries: number;
-  files: number;
+  entries: number;      // imported node count (0 for config-only providers)
+  files: number;        // imported memory files
+  configFiles: number;  // discovered config files (not imported)
   flagged: number;
 }
 
@@ -310,7 +311,8 @@ function sensitiveExcerpt(content: string): string {
     const m = content.match(p);
     if (m) return maskValue(m[0]);
   }
-  return maskValue(content.replace(/\s+/g, ' ').trim().slice(0, 40));
+  // No obvious secret — just clip the text instead of mangling it.
+  return truncate(content.replace(/\s+/g, ' ').trim(), 60);
 }
 
 function credentialLabel(detail: string): string {
@@ -336,14 +338,17 @@ function sensitivityMeter(counts: { critical: number; high: number; medium: numb
 export function formatScanAnalysis(
   providerStats: ScanProviderStat[],
   events: SecurityEvent[],
-  totals: { entries: number; providers: number; flagged: number },
+  totals: { entries: number; providers: number; flagged: number; totalProviders?: number },
 ): string {
   const lines: string[] = [];
 
   lines.push('');
   for (const p of providerStats) {
+    const count = p.files > 0
+      ? `${p.entries} entries`
+      : `${p.configFiles} config file${p.configFiles === 1 ? '' : 's'}`;
     lines.push(
-      `  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(p.path), 33), 35))} ${pad(`${p.entries} entries`, 12, true)}`,
+      `  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(p.path), 33), 35))} ${pad(count, 12, true)}`,
     );
   }
 
@@ -351,8 +356,9 @@ export function formatScanAnalysis(
   lines.push(inProgress('Analyzing sensitivity...'));
   lines.push('');
 
-  const docEvents = events.filter((e) => e.details?.file_name != null);
-  const findings = docEvents.filter((e) => e.severity !== 'info');
+  // Show every unresolved finding — agent memories and file memories — not
+  // just the documents touched by this scan.
+  const findings = events.filter((e) => e.severity !== 'info');
 
   if (findings.length === 0) {
     lines.push(dim('(no sensitive findings)'));
@@ -361,29 +367,47 @@ export function formatScanAnalysis(
       const sev = e.severity;
       const sevColor = sev === 'critical' ? chalk.red.bold : chalk.yellow;
       const flagType = String(e.details?.flag_type ?? '');
-      const provider = String(e.details?.provider ?? 'file');
       let label = FLAG_LABEL[flagType] ?? 'Finding';
       if (flagType === 'contains_credential') label = credentialLabel(String(e.details?.detail ?? ''));
-      const title = `${label} found in ${provider} memory`;
-      const excerpt = sensitiveExcerpt(String(e.details?.node_content ?? e.details?.detail ?? ''));
-      const file = String(e.details?.file_name ?? '');
+
+      const file = e.details?.file_name != null ? String(e.details.file_name) : '';
       const line = e.details?.line_start != null ? String(e.details.line_start) : '';
+      const provider = e.details?.provider != null ? String(e.details.provider) : '';
+
+      let title: string;
+      let source: string;
+      if (file) {
+        title = `${label} found in ${provider || 'file'} memory`;
+        source = `${file}${line ? ':' + line : ''}`;
+      } else if (e.memory_id) {
+        title = `${label} found in agent memory`;
+        source = `memory ${e.memory_id.slice(0, 8)}`;
+      } else {
+        title = label;
+        source = '';
+      }
+
+      const excerpt = sensitiveExcerpt(String(e.details?.node_content ?? e.details?.detail ?? ''));
+      const src = source ? `  →  ${source}` : '';
       lines.push(`  ${sevColor(`▲ ${SCAN_SEVERITY_LABEL[sev].padEnd(8)}`)}  ${chalk.white(title)}`);
-      lines.push(`    ${chalk.dim(`"${excerpt}"  →  ${file}${line ? ':' + line : ''}`)}`);
+      lines.push(`    ${chalk.dim(`"${excerpt}"${src}`)}`);
       lines.push('');
     }
   }
 
   const counts = { critical: 0, high: 0, medium: 0 };
-  for (const e of docEvents) {
+  for (const e of events) {
     if (e.severity === 'critical') counts.critical++;
     else if (e.severity === 'warning') counts.high++;
     else counts.medium++;
   }
   lines.push(sensitivityMeter(counts));
   lines.push('');
+
+  const providerWord = totals.providers === 1 ? 'provider' : 'providers';
+  const harnessNote = totals.totalProviders ? ` (of ${totals.totalProviders} harnesses)` : '';
   lines.push(
-    `  ${chalk.green('✓')} ${chalk.bold.white('Scan complete.')} ${chalk.white(`${totals.entries} entries across ${totals.providers} providers.`)} ${chalk.dim('Report saved.')}`,
+    `  ${chalk.green('✓')} ${chalk.bold.white('Scan complete.')} ${chalk.white(`${totals.entries} entries across ${totals.providers} ${providerWord}${harnessNote}.`)} ${chalk.dim('Report saved.')}`,
   );
 
   return lines.join('\n');

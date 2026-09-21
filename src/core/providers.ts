@@ -93,6 +93,14 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     ],
   },
   {
+    name: 'DeepSeek Harness',
+    platform: 'dsh',
+    targets: [
+      { path: '~/.dsh/cordis.patch.yml', description: 'MCP client config' },
+      { path: '~/.dsh/settings.yaml', description: 'Settings' },
+    ],
+  },
+  {
     name: 'Generic agents',
     platform: 'local_file',
     targets: [

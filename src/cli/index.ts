@@ -324,12 +324,12 @@ program
     const files = scanForMemoryFiles(config.providers);
     const importable = files.filter((f) => isImportablePath(f.path));
 
-    if (importable.length === 0) {
-      console.log(dim('No importable memory files found.'));
+    if (files.length === 0) {
+      console.log(dim('No memory files found.'));
       return;
     }
 
-    if (!opts.yes) {
+    if (importable.length > 0 && !opts.yes) {
       const ok = await confirm(`\n  Import ${importable.length} eligible file(s)? [y/N] `);
       if (!ok) {
         console.log('  Aborted.');
@@ -337,29 +337,32 @@ program
       }
     }
 
-    console.log('');
-    console.log(inProgress('Scanning AI memory providers...'));
+    if (importable.length > 0) {
+      console.log('');
+      console.log(inProgress('Scanning AI memory providers...'));
+    }
 
+    // Record every provider that has files — memory files *and* config files —
+    // so the scan reports the full set of detected harnesses.
     const byProvider = new Map<string, ScanProviderStat>();
+    for (const f of files) {
+      const name = f.provider ?? 'Unknown';
+      let s = byProvider.get(name);
+      if (!s) {
+        s = { name, path: f.path, entries: 0, files: 0, configFiles: 0, flagged: 0 };
+        byProvider.set(name, s);
+      }
+      if (!isImportablePath(f.path)) s.configFiles += 1;
+    }
+
     let totalEntries = 0;
     let totalFlagged = 0;
     for (const f of importable) {
       const result = importFileAsDocument(f.path, f.provider, f.platform, 'manual_import');
-      const name = f.provider ?? 'Unknown';
-      const existing = byProvider.get(name);
-      if (existing) {
-        existing.entries += result.total_nodes;
-        existing.files += 1;
-        existing.flagged += result.flagged_nodes;
-      } else {
-        byProvider.set(name, {
-          name,
-          path: f.path,
-          entries: result.total_nodes,
-          files: 1,
-          flagged: result.flagged_nodes,
-        });
-      }
+      const s = byProvider.get(f.provider ?? 'Unknown')!;
+      s.entries += result.total_nodes;
+      s.files += 1;
+      s.flagged += result.flagged_nodes;
       totalEntries += result.total_nodes;
       totalFlagged += result.flagged_nodes;
     }
@@ -370,6 +373,7 @@ program
       entries: totalEntries,
       providers: stats.length,
       flagged: totalFlagged,
+      totalProviders: config.providers.length,
     }));
 
     // Best-effort report; the scan itself has already succeeded.
@@ -381,13 +385,14 @@ program
         flagged: totalFlagged,
         providers_detail: stats,
         findings: events
-          .filter((e) => e.details?.file_name != null && e.severity !== 'info')
+          .filter((e) => e.severity !== 'info')
           .map((e) => ({
             severity: e.severity,
             title: e.title,
             file_name: e.details?.file_name,
             line_start: e.details?.line_start,
             provider: e.details?.provider,
+            memory_id: e.memory_id,
           })),
       };
       writeFileSync(join(m8mHomeDir(), 'last-scan.json'), JSON.stringify(report, null, 2));
