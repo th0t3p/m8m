@@ -765,6 +765,39 @@ async function renderMemories() {
 
 /* --------------------------------------------------------------- security */
 
+// Quarantine takes a memory out of circulation, so it reads as the heavier of
+// the two actions and needs a second click. It disarms on its own so a button
+// can never be left primed.
+const QUARANTINE_CONFIRM_MS = 3000;
+
+function quarantineButton(event) {
+  const critical = event.severity === 'critical';
+  const rest = critical ? 'Quarantine memory' : 'Quarantine';
+  const text = el('span', { text: rest });
+  const button = el('button', { class: `btn danger${critical ? ' crit' : ''}` }, icon('alert', 14), text);
+
+  let timer = null;
+  const disarm = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    button.classList.remove('armed');
+    text.textContent = rest;
+  };
+
+  button.addEventListener('click', () => {
+    if (timer) {
+      disarm();
+      act(`/api/memories/${event.memory_id}/quarantine`, {}, 'Memory quarantined');
+      return;
+    }
+    button.classList.add('armed');
+    text.textContent = 'Confirm quarantine?';
+    timer = setTimeout(disarm, QUARANTINE_CONFIRM_MS);
+  });
+
+  return button;
+}
+
 function eventCard(event, memory, doc) {
   const card = el('div', { class: `event ${event.severity}${event.resolved_at ? ' resolved' : ''}` });
 
@@ -810,19 +843,56 @@ function eventCard(event, memory, doc) {
   } else {
     card.appendChild(el('div', { class: 'event-actions' },
       el('button', {
-        class: 'btn primary',
+        class: 'btn ghost',
         onclick: () => act(`/api/events/${event.id}/resolve`, { resolution: 'user_dismissed' }, 'Event resolved'),
       }, icon('check', 14), 'Resolve'),
-      event.memory_id
-        ? el('button', {
-          class: 'btn danger',
-          onclick: () => act(`/api/memories/${event.memory_id}/quarantine`, {}, 'Memory quarantined'),
-        }, 'Quarantine memory')
-        : null,
+      event.memory_id ? quarantineButton(event) : null,
     ));
   }
 
   return card;
+}
+
+/** Consecutive events sharing a severity and title fold into one card, so a run
+ *  of identical flags reads as a single item until it is opened. */
+function eventGroupNode(events, cardFor) {
+  const first = events[0];
+  const body = el('div', { class: 'event-group-body', hidden: true });
+  const toggle = el('button', {
+    class: 'toggle',
+    type: 'button',
+    'aria-expanded': 'false',
+    text: `Show all ${events.length}`,
+  });
+  const node = el('div', { class: `event ${first.severity} event-group${first.resolved_at ? ' resolved' : ''}` },
+    el('div', { class: 'event-head' },
+      badge(humanize(first.severity, SEVERITY_LABEL), SEVERITY_VARIANT[first.severity] || ''),
+      el('span', { class: 'title', text: first.title }),
+      badge(`×${events.length}`, 'accent'),
+      el('span', {
+        class: 'meta time',
+        text: timeAgo(first.detected_at),
+        title: new Date(first.detected_at).toLocaleString(),
+      }),
+      toggle,
+    ),
+    body,
+  );
+
+  let built = false;
+  toggle.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    if (expanded && !built) {
+      for (const event of events) body.appendChild(cardFor(event));
+      built = true;
+    }
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.textContent = expanded ? 'Hide' : `Show all ${events.length}`;
+    body.hidden = !expanded;
+    if (expanded) decorateClamps(body);
+  });
+
+  return node;
 }
 
 async function renderSecurity() {
@@ -930,13 +1000,28 @@ async function renderSecurity() {
       return;
     }
 
+    const cardFor = (event) => eventCard(
+      event,
+      event.memory_id ? byId.get(event.memory_id) : null,
+      event.document_id ? byDocId.get(event.document_id) : null,
+    );
+
+    // Fold runs of identical flags. Only consecutive events group, so the
+    // list keeps the severity/date order the API returned.
+    let run = [];
+    const flush = () => {
+      if (!run.length) return;
+      listHost.appendChild(run.length > 1 ? eventGroupNode(run, cardFor) : cardFor(run[0]));
+      run = [];
+    };
     for (const event of shown) {
-      listHost.appendChild(eventCard(
-        event,
-        event.memory_id ? byId.get(event.memory_id) : null,
-        event.document_id ? byDocId.get(event.document_id) : null,
-      ));
+      const prev = run[run.length - 1];
+      if (prev && (prev.title !== event.title
+        || prev.severity !== event.severity
+        || Boolean(prev.resolved_at) !== Boolean(event.resolved_at))) flush();
+      run.push(event);
     }
+    flush();
     decorateClamps(listHost);
   }
 

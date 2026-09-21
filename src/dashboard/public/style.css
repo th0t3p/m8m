@@ -32,6 +32,7 @@
   --signal-info: #5c7a9a;
   --signal-ok-text: #7fa98c;
   --signal-crit-text: #d0797a;
+  --signal-warn-text: #c9a15f;
   --signal-info-text: #7f9cbb;
 
   /* type */
@@ -238,8 +239,33 @@ body {
 .btn.ghost:hover { background: var(--elevated); color: var(--text); }
 .btn.ghost.active { background: var(--elevated); border-color: var(--accent-soft); color: var(--text); }
 
-.btn.danger { background: transparent; border-color: var(--border); color: var(--signal-crit-text); }
-.btn.danger:hover { background: #c45c5c1f; border-color: var(--signal-crit); }
+/* Quarantine is destructive: heavier than Resolve and armed by a second click
+   (see quarantineButton). The tint comes from the signal tokens, so the
+   meaning keeps one source rather than introducing a new hue. */
+.btn.danger {
+  background: color-mix(in srgb, var(--signal-warn) 16%, transparent);
+  border-color: color-mix(in srgb, var(--signal-warn) 40%, transparent);
+  color: var(--signal-warn-text);
+}
+.btn.danger:hover {
+  background: color-mix(in srgb, var(--signal-warn) 26%, transparent);
+  border-color: var(--signal-warn);
+}
+.btn.danger.crit {
+  background: color-mix(in srgb, var(--signal-crit) 16%, transparent);
+  border-color: color-mix(in srgb, var(--signal-crit) 40%, transparent);
+  color: var(--signal-crit-text);
+}
+.btn.danger.crit:hover {
+  background: color-mix(in srgb, var(--signal-crit) 26%, transparent);
+  border-color: var(--signal-crit);
+}
+.btn.danger.armed,
+.btn.danger.armed:hover {
+  background: color-mix(in srgb, var(--signal-crit) 30%, transparent);
+  border-color: var(--signal-crit);
+  color: var(--text);
+}
 
 .btn.ok { background: transparent; border-color: var(--border); color: var(--signal-ok-text); }
 .btn.ok:hover { background: #5c8a6a1f; border-color: var(--signal-ok); }
@@ -581,6 +607,12 @@ tr:hover td { background: var(--surface); }
 
 .detail { margin-top: var(--sp-2); color: var(--text-dim); font-size: var(--fs-sm); }
 .event-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+/* A run of identical flags folds into one card until it is opened. */
+.event-group .event-head .toggle { margin-left: var(--sp-1); }
+.event-group-body { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-4); }
+.event-group-body[hidden] { display: none; }
+.event-group-body .event { margin-bottom: 0; background: var(--bg); }
 
 /* ------------------------------------------------------------------- diff */
 
