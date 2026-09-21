@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>m8m — AI memory observability, provenance & security</title>
+<meta name="description" content="See what AI tools remember about you. Scan, audit, and control AI memory across Claude, Codex, Cursor, Windsurf, and 12+ providers.">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --purple-50: #f3f0ff;
+  --purple-100: #e9e2ff;
+  --purple-200: #d4c8ff;
+  --purple-400: #9b7aff;
+  --purple-500: #7C3AED;
+  --purple-600: #6d28d9;
+  --purple-700: #5b21b6;
+  --purple-900: #2e1065;
+  --bg: #fafafe;
+  --bg-card: #ffffff;
+  --text: #1a1a2e;
+  --text-secondary: #64648b;
+  --border: #e8e8f0;
+  --mascot-tile: var(--purple-100);
+  --terminal-bg: #0f0a1a;
+  --terminal-text: #c4b5fd;
+  --terminal-green: #4ade80;
+  --terminal-yellow: #fbbf24;
+  --terminal-red: #f87171;
+  --terminal-dim: #4a4560;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0812;
+    --bg-card: #13101f;
+    --text: #e8e4f0;
+    --text-secondary: #8b87a0;
+    --border: #1f1a30;
+    --mascot-tile: var(--bg-card);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0812;
+  --bg-card: #13101f;
+  --text: #e8e4f0;
+  --text-secondary: #8b87a0;
+  --border: #1f1a30;
+  --mascot-tile: var(--bg-card);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Layout ── */
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── Hero ── */
+.hero {
+  padding: 80px 0 60px;
+  text-align: center;
+}
+
+.hero-mascot {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 32px;
+  display: grid;
+  place-items: center;
+  background: var(--mascot-tile);
+  border-radius: 26px;
+}
+
+.hero-mascot img {
+  display: block;
+  width: 104px;
+  height: 104px;
+}
+
+.hero h1 {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--purple-500);
+  margin-bottom: 12px;
+}
+
+.hero-tagline {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  max-width: 480px;
+  margin: 0 auto 40px;
+  font-weight: 400;
+}
+
+.install-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--terminal-bg);
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--terminal-text);
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  position: relative;
+}
+.install-block:hover {
+  box-shadow: 0 0 0 1px var(--purple-500), 0 4px 24px rgba(124, 58, 237, 0.15);
+}
+.install-block .prompt { color: var(--purple-400); user-select: none; }
+.install-block .cmd { color: #e2ddf8; }
+.install-block .copy-hint {
+  font-size: 0.7rem;
+  color: var(--terminal-dim);
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.02em;
+}
+.install-block .copied-toast {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--purple-600);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: 'Inter', sans-serif;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.install-block .copied-toast.show { opacity: 1; }
+
+/* ── Terminal Demo ── */
+.demo-section {
+  padding: 40px 0 80px;
+}
+
+.terminal {
+  background: var(--terminal-bg);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.2);
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #333;
+}
+.terminal-dot.red { background: #ff5f57; }
+.terminal-dot.yellow { background: #febc2e; }
+.terminal-dot.green { background: #28c840; }
+.terminal-title {
+  margin-left: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--terminal-dim);
+}
+
+.terminal-body {
+  padding: 20px 24px 28px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  min-height: 340px;
+  overflow-x: auto;
+}
+
+.term-line {
+  white-space: pre;
+  opacity: 0;
+  transform: translateY(4px);
+  animation: lineIn 0.25s forwards;
+}
+
+@keyframes lineIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.term-prompt { color: var(--purple-400); }
+.term-cmd { color: #e2ddf8; }
+.term-info { color: var(--terminal-dim); }
+.term-label { color: var(--purple-400); }
+.term-ok { color: var(--terminal-green); }
+.term-warn { color: var(--terminal-yellow); }
+.term-crit { color: var(--terminal-red); font-weight: 500; }
+.term-dim { color: var(--terminal-dim); }
+.term-provider { color: #c4b5fd; }
+.term-count { color: #e2ddf8; font-weight: 500; }
+.term-bar-fill { color: var(--purple-400); }
+.term-bar-empty { color: #2a2540; }
+
+.term-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--purple-400);
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.demo-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.demo-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.demo-btn:hover {
+  border-color: var(--purple-500);
+  color: var(--purple-500);
+}
+.demo-btn.active {
+  background: var(--purple-500);
+  border-color: var(--purple-500);
+  color: white;
+}
+
+/* ── Features ── */
+.features {
+  padding: 60px 0;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.feature-card {
+  padding: 28px 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  transition: border-color 0.2s;
+}
+.feature-card:hover {
+  border-color: var(--purple-400);
+}
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 16px;
+  color: var(--purple-500);
+}
+
+.feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* ── Providers ── */
+.providers {
+  padding: 60px 0;
+  text-align: center;
+}
+
+.providers h2 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.provider-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.provider-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all 0.15s;
+  background: var(--bg-card);
+}
+.provider-pill:hover {
+  border-color: var(--purple-400);
+  color: var(--purple-500);
+}
+
+/* ── CTA ── */
+.cta-section {
+  padding: 60px 0 80px;
+  text-align: center;
+}
+
+.cta-section p {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cta-row {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  text-decoration: none;
+  transition: all 0.15s;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--purple-500);
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--purple-600);
+  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  border-color: var(--purple-400);
+  color: var(--purple-500);
+}
+.btn svg { width: 18px; height: 18px; }
+
+/* ── Footer ── */
+footer {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--terminal-dim);
+  border-top: 1px solid var(--border);
+}
+footer a { color: var(--purple-400); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .hero { padding: 60px 0 40px; }
+  .hero h1 { font-size: 2.5rem; }
+  .hero-tagline { font-size: 1.05rem; }
+  .features-grid { grid-template-columns: 1fr; gap: 16px; }
+  .terminal-body { font-size: 0.72rem; padding: 16px; min-height: 300px; }
+  .install-block { font-size: 0.8rem; padding: 12px 16px; }
+}
+
+/* ── Reduce motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .term-line { animation: none; opacity: 1; transform: none; }
+  .term-cursor { animation: none; opacity: 1; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── Hero ─── -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-mascot">
+      <img src="assets/mascot.png" alt="" width="104" height="104" decoding="async">
+    </div>
+
+    <h1>m8m</h1>
+    <p class="hero-tagline">See what AI tools remember about you — scan, audit, and take control.</p>
+
+    <div class="install-block" onclick="copyInstall()" role="button" tabindex="0" aria-label="Copy install command">
+      <span class="prompt">$</span>
+      <span class="cmd">npx @th0t3p/m8m scan</span>
+      <span class="copy-hint">click to copy</span>
+      <span class="copied-toast" id="copiedToast">copied</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Terminal Demo ─── -->
+<section class="demo-section">
+  <div class="container">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+        <span class="terminal-title">m8m — scan</span>
+      </div>
+      <div class="terminal-body" id="termBody"></div>
+    </div>
+    <div class="demo-controls">
+      <button class="demo-btn active" data-demo="scan" onclick="runDemo('scan')">scan</button>
+      <button class="demo-btn" data-demo="audit" onclick="runDemo('audit')">audit</button>
+      <button class="demo-btn" data-demo="watch" onclick="runDemo('watch')">watch</button>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Features ─── -->
+<section class="features">
+  <div class="container">
+    <div class="features-grid">
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 6v6l4 2"/>
+        </svg>
+        <h3>Memory scanning</h3>
+        <p>Discover every memory file across Claude, Codex, Cursor, Windsurf, Cline, and 12+ AI providers in one pass.</p>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <h3>Sensitivity detection</h3>
+        <p>7 pattern-based rules flag credentials, PII, financial data, health info, and auth tokens — no LLM calls, fully local.</p>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M16 13H8M16 17H8M10 9H8"/>
+        </svg>
+        <h3>Provenance tracking</h3>
+        <p>Trace every memory entry back to who wrote it, when, and from which conversation — full audit trail in SQLite.</p>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+        </svg>
+        <h3>Local dashboard</h3>
+        <p>Visual overview of all discovered memories, risk scores, and provider coverage — runs on localhost, your data never leaves.</p>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <h3>File watcher</h3>
+        <p>Real-time monitoring of memory file changes with instant alerts when new sensitive data appears.</p>
+      </div>
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
+          <line x1="4" y1="22" x2="4" y2="15"/>
+        </svg>
+        <h3>MCP server</h3>
+        <p>Expose memory audit as a tool your AI assistant can call — let Claude or Codex check its own memory footprint.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Providers ─── -->
+<section class="providers">
+  <div class="container">
+    <h2>Works with your AI tools</h2>
+    <div class="provider-grid">
+      <span class="provider-pill">Claude Code</span>
+      <span class="provider-pill">Codex CLI</span>
+      <span class="provider-pill">Cursor</span>
+      <span class="provider-pill">Windsurf</span>
+      <span class="provider-pill">Cline</span>
+      <span class="provider-pill">GitHub Copilot</span>
+      <span class="provider-pill">Aider</span>
+      <span class="provider-pill">Continue</span>
+      <span class="provider-pill">Roo Code</span>
+      <span class="provider-pill">Amazon Q</span>
+      <span class="provider-pill">Ollama</span>
+      <span class="provider-pill">ChatGPT</span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CTA ─── -->
+<section class="cta-section">
+  <div class="container">
+    <p>Open source. Fully local. Zero telemetry.</p>
+    <div class="cta-row">
+      <a href="https://github.com/th0t3p/m8m" class="btn btn-primary" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+      <a href="https://www.npmjs.com/package/@th0t3p/m8m" class="btn btn-ghost" target="_blank" rel="noopener">
+        npm package
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    Built by <a href="https://github.com/th0t3p" target="_blank" rel="noopener">th0t3p</a> · Part of the <a href="#">章鱼猫</a> family
+  </div>
+</footer>
+
+<script>
+function copyInstall() {
+  navigator.clipboard.writeText('npx @th0t3p/m8m scan').catch(() => {});
+  const toast = document.getElementById('copiedToast');
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 1200);
+}
+
+const demos = {
+  scan: [
+    { type: 'prompt', text: '$ npx @th0t3p/m8m scan' },
+    { type: 'blank' },
+    { type: 'info',   text: '  ◐  Scanning AI memory providers...' },
+    { type: 'blank' },
+    { type: 'mixed',  parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-provider', text: 'Claude Code' },
+      { cls: 'term-dim', text: '        ~/.claude/memory/' },
+      { cls: 'term-count', text: '  47 entries' },
+    ]},
+    { type: 'mixed',  parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-provider', text: 'Cursor' },
+      { cls: 'term-dim', text: '             ~/.cursor/memory/' },
+      { cls: 'term-count', text: '  23 entries' },
+    ]},
+    { type: 'mixed',  parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-provider', text: 'Codex CLI' },
+      { cls: 'term-dim', text: '          ~/.codex/' },
+      { cls: 'term-count', text: '  12 entries' },
+    ]},
+    { type: 'mixed',  parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-provider', text: 'Windsurf' },
+      { cls: 'term-dim', text: '           ~/.codeium/' },
+      { cls: 'term-count', text: '   8 entries' },
+    ]},
+    { type: 'mixed',  parts: [
+      { cls: 'term-dim', text: '  ○ ' },
+      { cls: 'term-dim', text: 'Cline' },
+      { cls: 'term-dim', text: '              not found' },
+    ]},
+    { type: 'blank' },
+    { type: 'info',   text: '  ◐  Analyzing sensitivity...' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-crit', text: '  ▲ CRITICAL ' },
+      { cls: 'term-text', text: ' API key found in Claude memory' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '    ' },
+      { cls: 'term-dim', text: '"sk-ant-api03-****...****"  →  profile.md:14' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-warn', text: '  ▲ HIGH     ' },
+      { cls: 'term-text', text: ' Email address in Cursor memory' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '    ' },
+      { cls: 'term-dim', text: '"paris@****.com"  →  user-context.md:3' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-warn', text: '  ▲ HIGH     ' },
+      { cls: 'term-text', text: ' AWS credentials in Codex memory' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '    ' },
+      { cls: 'term-dim', text: '"AKIA****...****"  →  project-notes.md:27' },
+    ]},
+    { type: 'blank' },
+    { type: 'bar',  label: '  Sensitivity ', values: [
+      { n: 1, cls: 'term-crit', ch: '█' },
+      { n: 2, cls: 'term-warn', ch: '█' },
+      { n: 5, cls: 'term-label', ch: '█' },
+      { n: 12, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: ' 1 critical · 2 high · 5 medium' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-dim', text: 'Scan complete. 90 entries across 4 providers. Report saved.' },
+    ]},
+  ],
+  audit: [
+    { type: 'prompt', text: '$ npx @th0t3p/m8m audit --provider claude' },
+    { type: 'blank' },
+    { type: 'info',   text: '  ◐  Auditing Claude Code memory provenance...' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Provider   ' },
+      { cls: 'term-text', text: ' Claude Code' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Entries    ' },
+      { cls: 'term-count', text: ' 47' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Oldest     ' },
+      { cls: 'term-dim', text: ' 2025-11-03 14:22 UTC' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Newest     ' },
+      { cls: 'term-dim', text: ' 2026-09-20 09:15 UTC' },
+    ]},
+    { type: 'blank' },
+    { type: 'info', text: '  Memory by category:' },
+    { type: 'blank' },
+    { type: 'bar', label: '  preferences  ', values: [
+      { n: 14, cls: 'term-label', ch: '█' },
+      { n: 6, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: ' 14' },
+    { type: 'bar', label: '  project ctx  ', values: [
+      { n: 11, cls: 'term-label', ch: '█' },
+      { n: 9, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: ' 11' },
+    { type: 'bar', label: '  personal     ', values: [
+      { n: 9, cls: 'term-warn', ch: '█' },
+      { n: 11, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: '  9' },
+    { type: 'bar', label: '  credentials  ', values: [
+      { n: 3, cls: 'term-crit', ch: '█' },
+      { n: 17, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: '  3' },
+    { type: 'bar', label: '  other        ', values: [
+      { n: 10, cls: 'term-dim', ch: '█' },
+      { n: 10, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: ' 10' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-dim', text: 'Audit complete. Full report: .m8m/audit-claude-20260921.json' },
+    ]},
+  ],
+  watch: [
+    { type: 'prompt', text: '$ npx @th0t3p/m8m watch' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-ok', text: '  ✓ ' },
+      { cls: 'term-dim', text: 'Watching 4 providers for memory changes...' },
+    ]},
+    { type: 'info', text: '    Press Ctrl+C to stop' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '  09:15:02 ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-provider', text: 'Claude' },
+      { cls: 'term-dim', text: '  profile.md modified' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-dim', text: '+  "Works at Yuan Technology LLC"' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-ok', text: '  ○ clean' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '  09:17:44 ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-provider', text: 'Cursor' },
+      { cls: 'term-dim', text: '  user-context.md modified' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-dim', text: '+  "AWS account: AKIA3E****"' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-crit', text: '  ▲ CRITICAL: credential detected' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '  09:22:11 ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-provider', text: 'Codex' },
+      { cls: 'term-dim', text: '   instructions.md modified' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-dim', text: '+  "Preferred language: TypeScript"' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '           ' },
+      { cls: 'term-label', text: '│ ' },
+      { cls: 'term-ok', text: '  ○ clean' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '  ●' },
+      { cls: 'term-dim', text: ' watching...' },
+    ]},
+  ],
+};
+
+let currentTimer = null;
+
+function runDemo(name) {
+  document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-demo="${name}"]`).classList.add('active');
+
+  const body = document.getElementById('termBody');
+  body.innerHTML = '';
+  if (currentTimer) clearTimeout(currentTimer);
+
+  const lines = demos[name];
+  let i = 0;
+  const lineDelay = 70;
+
+  function renderLine(spec) {
+    const div = document.createElement('div');
+    div.className = 'term-line';
+    div.style.animationDelay = '0s';
+
+    if (spec.type === 'blank') {
+      div.innerHTML = '&nbsp;';
+    } else if (spec.type === 'prompt') {
+      div.innerHTML = `<span class="term-prompt">$ </span><span class="term-cmd">${esc(spec.text.slice(2))}</span>`;
+    } else if (spec.type === 'info') {
+      div.innerHTML = `<span class="term-info">${esc(spec.text)}</span>`;
+    } else if (spec.type === 'mixed') {
+      div.innerHTML = spec.parts.map(p => `<span class="${p.cls}">${esc(p.text)}</span>`).join('');
+    } else if (spec.type === 'bar') {
+      let bar = spec.values.map(v => `<span class="${v.cls}">${v.ch.repeat(v.n)}</span>`).join('');
+      div.innerHTML = `<span class="term-dim">${esc(spec.label)}</span>${bar}<span class="term-dim">${esc(spec.suffix)}</span>`;
+    }
+    body.appendChild(div);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function next() {
+    if (i >= lines.length) {
+      const cur = document.createElement('span');
+      cur.className = 'term-cursor';
+      const last = body.lastElementChild;
+      if (last) last.appendChild(cur);
+      return;
+    }
+    renderLine(lines[i]);
+    i++;
+    currentTimer = setTimeout(next, lineDelay);
+  }
+  next();
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Start on load
+runDemo('scan');
+</script>
+</body>
+</html>
