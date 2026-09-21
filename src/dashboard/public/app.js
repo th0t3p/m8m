@@ -868,7 +868,7 @@ function eventGroupNode(events, cardFor) {
     el('div', { class: 'event-head' },
       badge(humanize(first.severity, SEVERITY_LABEL), SEVERITY_VARIANT[first.severity] || ''),
       el('span', { class: 'title', text: first.title }),
-      badge(`×${events.length}`, 'accent'),
+      badge(`×${events.length}`),
       el('span', {
         class: 'meta time',
         text: timeAgo(first.detected_at),
