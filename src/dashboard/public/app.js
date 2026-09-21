@@ -117,7 +117,9 @@ const SEVERITY_LABEL = { critical: 'Critical', warning: 'Warning', info: 'Info' 
 function humanize(value, map) {
   if (value == null || value === '') return '—';
   if (map && map[value]) return map[value];
-  return String(value).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  // Treat both snake_case and kebab-case (raw clientInfo.name like
+  // "codex-cli", "github-copilot") as word separators.
+  return String(value).replace(/[-_]+/g, ' ').replace(/^./, (c) => c.toUpperCase());
 }
 
 const platform = (p) => humanize(p, PLATFORM);

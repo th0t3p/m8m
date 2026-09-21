@@ -4,11 +4,16 @@ export type SourceType =
   | 'conversation' | 'document' | 'email' | 'web_page'
   | 'tool_output' | 'ai_derived' | 'user_explicit' | 'unknown';
 
+// Known platforms are listed for discoverability/docs; the trailing
+// `(string & {})` keeps them as autocomplete suggestions while still accepting
+// any harness's raw self-reported clientInfo.name (e.g. "codex-cli",
+// "github-copilot") verbatim.
 export type SourcePlatform =
   | 'claude_web' | 'chatgpt_web' | 'claude_code' | 'claude_desktop' | 'cursor'
   | 'dsh' | 'codebuddy' | 'windsurf' | 'cline' | 'codex' | 'aider' | 'copilot'
   | 'continue_dev' | 'gemini' | 'zed' | 'trae' | 'goose' | 'qoder'
-  | 'mem0' | 'local_file' | 'manual_import' | 'unknown';
+  | 'mem0' | 'local_file' | 'manual_import' | 'unknown'
+  | (string & {});
 
 export type MemoryStatus = 'active' | 'quarantined' | 'dismissed' | 'deleted';
 

@@ -19,14 +19,12 @@ const PLATFORMS: SourcePlatform[] = [
   'mem0', 'local_file', 'manual_import', 'unknown',
 ];
 
-// Ordered keyword → platform pairs, shared by the clientInfo handshake and the
-// environment fallback. Order matters for tokens that are substrings of others
-// (e.g. `claude_desktop` must precede `claude`). A harness is caught by any of
-// the tokens it is known to expose.
-const PLATFORM_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = [
+// Ordered keyword → platform pairs for the *environment* fallback only. Order
+// matters for tokens that are substrings of others (e.g. `claude_desktop` must
+// precede `claude`). A harness is caught by any token it is known to expose.
+const ENV_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = [
   { keyword: 'codebuddy', platform: 'codebuddy' },
   { keyword: 'deepseek', platform: 'dsh' },
-  { keyword: 'claude-desktop', platform: 'claude_desktop' },
   { keyword: 'claude_desktop', platform: 'claude_desktop' },
   { keyword: 'claude', platform: 'claude_code' },
   { keyword: 'cursor', platform: 'cursor' },
@@ -50,18 +48,15 @@ const PLATFORM_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = 
 // Populated from the MCP `initialize` handshake (clientInfo.name) once the
 // client connects — the most authoritative signal because the client declares
 // itself, regardless of how it was installed.
-let clientPlatform: SourcePlatform | null = null;
+let clientPlatform: string | null = null;
 
-/** Record the client's self-reported name from the MCP initialize handshake. */
+/** Record the client's self-reported name from the MCP initialize handshake.
+ * Stored verbatim (lowercased) — the provider's own name is authoritative, so
+ * we don't re-map it to a canonical platform. */
 export function setClientPlatform(clientInfoName?: string): void {
-  const n = (clientInfoName ?? '').toLowerCase();
+  const n = (clientInfoName ?? '').trim().toLowerCase();
   if (!n) return;
-  for (const { keyword, platform } of PLATFORM_KEYWORDS) {
-    if (n.includes(keyword)) {
-      clientPlatform = platform;
-      return;
-    }
-  }
+  clientPlatform = n;
 }
 
 /** Which harness is connected. Prefers the MCP clientInfo name, then the
@@ -77,7 +72,7 @@ export function detectPlatform(): SourcePlatform {
   // CONTINUE_*, GEMINI_*, ZED_*, TRAE_*, GOOSE_*, QODER_* — without pinning one
   // exact variable name per harness.
   const env = Object.keys(process.env).join(' ').toUpperCase();
-  for (const { keyword, platform } of PLATFORM_KEYWORDS) {
+  for (const { keyword, platform } of ENV_KEYWORDS) {
     if (env.includes(keyword.toUpperCase())) return platform;
   }
   return 'unknown';

@@ -50,25 +50,25 @@ describe('detectPlatform env sniffing', () => {
 });
 
 describe('setClientPlatform', () => {
-  it('maps self-reported client names', () => {
+  it('stores the self-reported name verbatim (lowercased)', () => {
     const cases: Array<[string, string]> = [
-      ['codebuddy', 'codebuddy'],
-      ['windsurf', 'windsurf'],
-      ['cline', 'cline'],
-      ['codex', 'codex'],
-      ['aider', 'aider'],
-      ['github-copilot', 'copilot'],
-      ['continue', 'continue_dev'],
-      ['gemini-cli', 'gemini'],
-      ['zed', 'zed'],
-      ['trae', 'trae'],
-      ['goose', 'goose'],
-      ['qoder', 'qoder'],
-      ['claude', 'claude_code'],
-      ['claude-desktop', 'claude_desktop'],
-      ['cursor', 'cursor'],
-      ['deepseek', 'dsh'],
-      ['chatgpt', 'chatgpt_web'],
+      ['CodeBuddy', 'codebuddy'],
+      ['Windsurf', 'windsurf'],
+      ['Cline', 'cline'],
+      ['codex-cli', 'codex-cli'],
+      ['Aider', 'aider'],
+      ['github-copilot', 'github-copilot'],
+      ['Continue', 'continue'],
+      ['gemini-cli', 'gemini-cli'],
+      ['Zed', 'zed'],
+      ['Trae', 'trae'],
+      ['Goose', 'goose'],
+      ['Qoder', 'qoder'],
+      ['Claude Code', 'claude code'],
+      ['claude-desktop', 'claude-desktop'],
+      ['Cursor', 'cursor'],
+      ['DeepSeek Harness', 'deepseek harness'],
+      ['ChatGPT', 'chatgpt'],
     ];
     for (const [name, expected] of cases) {
       setClientPlatform(name);
