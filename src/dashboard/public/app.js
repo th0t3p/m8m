@@ -90,7 +90,7 @@ function stat(value, label, variant = '') {
 
 const PLATFORM = {
   claude_code: 'Claude Code', claude_web: 'Claude Web', claude_desktop: 'Claude Desktop',
-  chatgpt_web: 'ChatGPT', cursor: 'Cursor', local_file: 'Local file',
+  chatgpt_web: 'ChatGPT', cursor: 'Cursor', dsh: 'DeepSeek Harness', local_file: 'Local file',
   manual_import: 'Manual import', mem0: 'mem0', unknown: 'Unknown',
 };
 const DETECTOR = {

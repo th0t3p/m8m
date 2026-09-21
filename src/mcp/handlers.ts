@@ -15,9 +15,10 @@ import type { MemoryEntry, SourcePlatform, SourceType } from '../core/types.js';
 /** Best-effort detection of which harness is connected. */
 export function detectPlatform(): SourcePlatform {
   if (process.env.CURSOR || process.env.CURSOR_TRACE_ID) return 'cursor';
+  if (process.env.DSH_HOME || process.env.DSH_SESSION_ID) return 'dsh';
   if (process.env.CLAUDE_CODE_ENTRYPOINT || process.env.CLAUDECODE) return 'claude_code';
   if (process.env.CLAUDE_DESKTOP) return 'claude_desktop';
-  return 'claude_code';
+  return 'unknown';
 }
 
 /** Remove internal security/provenance metadata before exposing to the agent. */

@@ -6,7 +6,7 @@ export type SourceType =
 
 export type SourcePlatform =
   | 'claude_web' | 'chatgpt_web' | 'claude_code' | 'cursor'
-  | 'claude_desktop' | 'mem0' | 'local_file' | 'manual_import' | 'unknown';
+  | 'claude_desktop' | 'dsh' | 'mem0' | 'local_file' | 'manual_import' | 'unknown';
 
 export type MemoryStatus = 'active' | 'quarantined' | 'dismissed' | 'deleted';
 
