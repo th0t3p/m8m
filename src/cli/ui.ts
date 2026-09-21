@@ -9,9 +9,15 @@ import chalk from 'chalk';
 const WIDTH = 45;
 const INDENT = '  ';
 
-// Respect NO_COLOR and --no-color. chalk v5 also auto-detects TTY/NO_COLOR,
-// but forcing level=0 guarantees plain output in CI/pipes too.
-if (process.env.NO_COLOR !== undefined || process.argv.includes('--no-color')) {
+// Respect NO_COLOR and --no-color, but let FORCE_COLOR win (standard
+// convention: FORCE_COLOR overrides NO_COLOR). chalk already applies
+// FORCE_COLOR at import, so only force level=0 here when there is no
+// FORCE_COLOR override — this matters under harnesses that inject
+// NO_COLOR=1 + TERM=dumb.
+if (
+  process.env.FORCE_COLOR === undefined &&
+  (process.env.NO_COLOR !== undefined || process.argv.includes('--no-color'))
+) {
   chalk.level = 0;
 }
 

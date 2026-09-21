@@ -3,9 +3,8 @@
 
 import { Command } from 'commander';
 import { writeFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline';
-import chalk from 'chalk';
 import { configPath, initConfigDir, loadConfig, m8mHomeDir, saveConfig } from '../core/config.js';
 import {
   applyDocumentRollback,
@@ -48,12 +47,14 @@ import {
   formatMemoryDetail,
   formatMemoryList,
   formatRollbackPreview,
+  formatScanAnalysis,
   formatScanDiscovery,
   formatSecurityEvents,
   formatStatBlock,
   truncate,
 } from './formatters.js';
-import { dim, inProgress, pad, summary } from './ui.js';
+import type { ScanProviderStat } from './formatters.js';
+import { dim, inProgress } from './ui.js';
 import type { MemoryNode, MemoryStatus, ProviderConfig, SourcePlatform } from '../core/types.js';
 import { VERSION } from '../version.js';
 
@@ -323,12 +324,15 @@ program
   .action(async (opts: { dryRun?: boolean; yes?: boolean }) => {
     const config = ensureDb();
     const files = scanForMemoryFiles(config.providers);
-    console.log(formatScanDiscovery(files, config.providers));
 
-    if (opts.dryRun) return;
+    if (opts.dryRun) {
+      console.log(formatScanDiscovery(files, config.providers));
+      return;
+    }
 
     const importable = files.filter((f) => isImportablePath(f.path));
     if (importable.length === 0) {
+      console.log(formatScanDiscovery(files, config.providers));
       console.log('');
       console.log(dim('No importable memory files found.'));
       return;
@@ -343,30 +347,62 @@ program
     }
 
     console.log('');
-    console.log(inProgress('Importing & analyzing...'));
-    console.log('');
+    console.log(inProgress('Scanning AI memory providers...'));
 
-    let importedFiles = 0;
-    let nodes = 0;
-    let flagged = 0;
+    const byProvider = new Map<string, ScanProviderStat>();
+    let totalEntries = 0;
+    let totalFlagged = 0;
     for (const f of importable) {
       const result = importFileAsDocument(f.path, f.provider, f.platform, 'manual_import');
-      const flagNote = result.flagged_nodes > 0
-        ? `  ${chalk.yellow(`${result.flagged_nodes} flagged ⚠`)}`
-        : '';
-      console.log(`  ${chalk.green('✓')} ${chalk.bold.white(pad(f.provider, 14))} ${basename(f.path).padEnd(14)} ${pad(`${result.total_nodes} nodes`, 10, true)}${flagNote}`);
-      importedFiles++;
-      nodes += result.total_nodes;
-      flagged += result.flagged_nodes;
+      const name = f.provider ?? 'Unknown';
+      const existing = byProvider.get(name);
+      if (existing) {
+        existing.entries += result.total_nodes;
+        existing.files += 1;
+        existing.flagged += result.flagged_nodes;
+      } else {
+        byProvider.set(name, {
+          name,
+          path: f.path,
+          entries: result.total_nodes,
+          files: 1,
+          flagged: result.flagged_nodes,
+        });
+      }
+      totalEntries += result.total_nodes;
+      totalFlagged += result.flagged_nodes;
     }
 
-    console.log('');
-    console.log(summary('Done', [
-      { text: `${importedFiles} files imported` },
-      { text: `${nodes} nodes` },
-      { text: `${flagged} flagged`, style: flagged ? 'warn' : 'dim' },
-    ]));
-    if (flagged > 0) console.log(dim('Run `m8m audit` to review flagged entries.'));
+    const stats = [...byProvider.values()];
+    const events = getSecurityEvents({ resolved: false });
+    console.log(formatScanAnalysis(stats, events, {
+      entries: totalEntries,
+      providers: stats.length,
+      flagged: totalFlagged,
+    }));
+
+    // Best-effort report; the scan itself has already succeeded.
+    try {
+      const report = {
+        scanned_at: new Date().toISOString(),
+        entries: totalEntries,
+        providers: stats.length,
+        flagged: totalFlagged,
+        providers_detail: stats,
+        findings: events
+          .filter((e) => e.details?.file_name != null && e.severity !== 'info')
+          .map((e) => ({
+            severity: e.severity,
+            title: e.title,
+            file_name: e.details?.file_name,
+            line_start: e.details?.line_start,
+            provider: e.details?.provider,
+          })),
+      };
+      writeFileSync(join(m8mHomeDir(), 'last-scan.json'), JSON.stringify(report, null, 2));
+    } catch {
+      // ignore write failures (e.g. read-only home) — the scan still succeeded
+    }
   });
 
 // --- Snapshot -----------------------------------------------------------

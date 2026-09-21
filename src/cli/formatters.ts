@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import Table from 'cli-table3';
 import type {
   ChangelogEntry,
+  EventSeverity,
   MemoryDiff,
   MemoryEntry,
   M8mStats,
@@ -19,7 +20,6 @@ import {
   header,
   inProgress,
   pad,
-  skipped,
   summary,
   truncatePath,
 } from './ui.js';
@@ -286,10 +286,9 @@ export function formatScanDiscovery(files: DiscoveredMemoryFile[], providers: Pr
 
   for (const p of providers) {
     const found = byProvider.get(p.name) ?? [];
-    if (found.length === 0) {
-      lines.push(skipped(`${pad(p.name, 20)} not found`));
-      continue;
-    }
+    // Only list providers that were found — an empty "not found" row for every
+    // configured-but-absent harness is noise.
+    if (found.length === 0) continue;
     const total = found.reduce((s, f) => s + f.size, 0);
     const count = `${found.length} file${found.length === 1 ? '' : 's'}`;
     lines.push(`  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(found[0].path), 33), 35))} ${pad(count, 9, true)} ${pad(formatBytes(total), 9, true)}`);
@@ -297,5 +296,134 @@ export function formatScanDiscovery(files: DiscoveredMemoryFile[], providers: Pr
 
   lines.push('');
   lines.push(dim(`Found ${files.length} file(s) across ${byProvider.size} provider(s)`));
+  return lines.join('\n');
+}
+
+/** Per-provider totals collected while importing during `m8m scan`. */
+export interface ScanProviderStat {
+  name: string;
+  path: string;
+  entries: number;
+  files: number;
+  flagged: number;
+}
+
+/** Display names for the scan sensitivity report (critical/high/medium). */
+const SCAN_SEVERITY_LABEL: Record<EventSeverity, string> = {
+  critical: 'CRITICAL',
+  warning: 'HIGH',
+  info: 'MEDIUM',
+};
+
+const FLAG_LABEL: Record<string, string> = {
+  contains_credential: 'Credential',
+  contains_email: 'Email address',
+  contains_url: 'URL',
+  contains_instruction: 'Instruction',
+  hidden_character: 'Hidden character',
+  contradicts_existing: 'Contradiction',
+  source_unknown: 'Unknown source',
+};
+
+/** Mask a secret/email so the scan report never re-prints the plaintext. */
+function maskValue(v: string): string {
+  if (v.includes('@')) {
+    const at = v.indexOf('@');
+    const local = v.slice(0, at);
+    const head = local.slice(0, Math.min(2, local.length));
+    return `${head}****@${v.slice(at + 1)}`;
+  }
+  if (v.length <= 8) return `${v.slice(0, 2)}****`;
+  return `${v.slice(0, 6)}****…${v.slice(-4)}`;
+}
+
+/** Pull the sensitive token out of node content and mask it. */
+function sensitiveExcerpt(content: string): string {
+  const patterns = [
+    /\bAKIA[0-9A-Z]{16}\b/,
+    /\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/,
+    /\bgh[pous]_[A-Za-z0-9]{20,}\b/,
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+  ];
+  for (const p of patterns) {
+    const m = content.match(p);
+    if (m) return maskValue(m[0]);
+  }
+  return maskValue(content.replace(/\s+/g, ' ').trim().slice(0, 40));
+}
+
+function credentialLabel(detail: string): string {
+  if (/aws/i.test(detail)) return 'AWS credentials';
+  if (/api key|secret token|sk[-_]|pk[-_]/i.test(detail)) return 'API key';
+  return 'Credential';
+}
+
+function sensitivityMeter(counts: { critical: number; high: number; medium: number }): string {
+  const total = counts.critical + counts.high + counts.medium;
+  const width = 20;
+  const filled = Math.max(0, Math.min(width, total));
+  const barColor = counts.critical > 0 ? chalk.red : counts.high > 0 ? chalk.yellow : chalk.dim;
+  const bar = barColor('█'.repeat(filled)) + chalk.dim('░'.repeat(width - filled));
+  const parts = `${counts.critical} critical · ${counts.high} high · ${counts.medium} medium`;
+  return `  ${chalk.bold.white('Sensitivity')} ${bar} ${chalk.dim(parts)}`;
+}
+
+/**
+ * Post-import output for `m8m scan`: per-provider entry counts, then the
+ * sensitivity findings (masked, file:line) and a severity meter.
+ */
+export function formatScanAnalysis(
+  providerStats: ScanProviderStat[],
+  events: SecurityEvent[],
+  totals: { entries: number; providers: number; flagged: number },
+): string {
+  const lines: string[] = [];
+
+  lines.push('');
+  for (const p of providerStats) {
+    lines.push(
+      `  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(p.path), 33), 35))} ${pad(`${p.entries} entries`, 12, true)}`,
+    );
+  }
+
+  lines.push('');
+  lines.push(inProgress('Analyzing sensitivity...'));
+  lines.push('');
+
+  const docEvents = events.filter((e) => e.details?.file_name != null);
+  const findings = docEvents.filter((e) => e.severity !== 'info');
+
+  if (findings.length === 0) {
+    lines.push(dim('(no sensitive findings)'));
+  } else {
+    for (const e of findings) {
+      const sev = e.severity;
+      const sevColor = sev === 'critical' ? chalk.red.bold : chalk.yellow;
+      const flagType = String(e.details?.flag_type ?? '');
+      const provider = String(e.details?.provider ?? 'file');
+      let label = FLAG_LABEL[flagType] ?? 'Finding';
+      if (flagType === 'contains_credential') label = credentialLabel(String(e.details?.detail ?? ''));
+      const title = `${label} found in ${provider} memory`;
+      const excerpt = sensitiveExcerpt(String(e.details?.node_content ?? e.details?.detail ?? ''));
+      const file = String(e.details?.file_name ?? '');
+      const line = e.details?.line_start != null ? String(e.details.line_start) : '';
+      lines.push(`  ${sevColor(`▲ ${SCAN_SEVERITY_LABEL[sev].padEnd(8)}`)}  ${chalk.white(title)}`);
+      lines.push(`    ${chalk.dim(`"${excerpt}"  →  ${file}${line ? ':' + line : ''}`)}`);
+      lines.push('');
+    }
+  }
+
+  const counts = { critical: 0, high: 0, medium: 0 };
+  for (const e of docEvents) {
+    if (e.severity === 'critical') counts.critical++;
+    else if (e.severity === 'warning') counts.high++;
+    else counts.medium++;
+  }
+  lines.push(sensitivityMeter(counts));
+  lines.push('');
+  lines.push(
+    `  ${chalk.green('✓')} ${chalk.bold.white('Scan complete.')} ${chalk.white(`${totals.entries} entries across ${totals.providers} providers.`)} ${chalk.dim('Report saved.')}`,
+  );
+
   return lines.join('\n');
 }
