@@ -1039,4 +1039,7 @@ tr:hover td { background: var(--surface); }
   .stats-bar .stat-item:not(.crit),
   .stats-bar .sep { display: none; }
   .stats-bar:not(.has-critical) { display: none; }
+  /* Shortcuts need a physical keyboard, and a floating trigger would sit on
+     top of the row underneath it. */
+  .help-btn { display: none; }
 }
