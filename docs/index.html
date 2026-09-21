@@ -1254,11 +1254,9 @@ const demos = {
   watch: [
     { type: 'prompt', text: '$ npx @th0t3p/m8m watch' },
     { type: 'blank' },
-    { type: 'mixed', parts: [
-      { cls: 'term-ok', text: '  ✓ ' },
-      { cls: 'term-dim', text: 'Watching 4 providers for memory changes...' },
-    ]},
-    { type: 'info', text: '    Press Ctrl+C to stop' },
+    { type: 'info', text: '  Watching 4 path(s) across 3 providers. Ctrl-C to stop.' },
+    { type: 'blank' },
+    { type: 'info', text: '  ● watching...' },
     { type: 'blank' },
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '  09:15:02 ' },
@@ -1291,7 +1289,7 @@ const demos = {
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '           ' },
       { cls: 'term-label', text: '│ ' },
-      { cls: 'term-crit', text: '  ▲ CRITICAL: credential detected' },
+      { cls: 'term-crit', text: '  ▲ CRITICAL — credential detected' },
     ]},
     { type: 'blank' },
     { type: 'mixed', parts: [
@@ -1311,10 +1309,6 @@ const demos = {
       { cls: 'term-ok', text: '  ○ clean' },
     ]},
     { type: 'blank' },
-    { type: 'mixed', parts: [
-      { cls: 'term-dim', text: '  ●' },
-      { cls: 'term-dim', text: ' watching...' },
-    ]},
   ],
 };
 

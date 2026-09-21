@@ -92,6 +92,41 @@ function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
   return top;
 }
 
+/** Humanize a flag type ("contains_credential" → "credential detected"). */
+function flagLabel(type: string): string {
+  const labels: Record<string, string> = {
+    contains_credential: 'credential detected',
+    contains_email: 'email detected',
+    contains_url: 'URL detected',
+    contains_instruction: 'instruction detected',
+    contradicts_existing: 'contradiction detected',
+    hidden_character: 'hidden character detected',
+    source_unknown: 'unknown source',
+  };
+  return labels[type] ?? type;
+}
+
+/** Mask any secret/email in an added line so the watcher never re-prints plaintext. */
+function maskAddedLine(line: string): string {
+  const patterns = [
+    /\bAKIA[0-9A-Z]{16}\b/,
+    /\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/,
+    /\bgh[pous]_[A-Za-z0-9]{20,}\b/,
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+  ];
+  for (const p of patterns) {
+    line = line.replace(p, (m) => {
+      if (m.includes('@')) {
+        const at = m.indexOf('@');
+        return `${m.slice(0, Math.min(2, at))}****@${m.slice(at + 1)}`;
+      }
+      if (m.length <= 8) return `${m.slice(0, 2)}****`;
+      return `${m.slice(0, 6)}****…${m.slice(-4)}`;
+    });
+  }
+  return line;
+}
+
 function upsertWatchTarget(path: string, targetType: 'file' | 'directory', format: string, platform: string): void {
   const d = getDb();
   const existing = d.prepare(`SELECT id FROM watch_targets WHERE path = ?`).get(path);
@@ -134,11 +169,11 @@ function handleFileChange(path: string, platform: string): void {
   const provider = shortProvider(platform);
 
   console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white(provider.padEnd(10))} ${file} modified`);
-  if (added) console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(added.slice(0, 44))}"`);
+  if (added) console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskAddedLine(added).slice(0, 44))}"`);
   if (top?.severity === 'critical') {
-    console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold('🔴 CRITICAL')}${chalk.dim(` — ${top.type}`)}`);
+    console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold(`▲ CRITICAL — ${flagLabel(top.type)}`)}`);
   } else if (top?.severity === 'warning') {
-    console.error(`  ${' '.repeat(9)}│ ${chalk.yellow('⚠ WARNING')}${chalk.dim(` — ${top.type}`)}`);
+    console.error(`  ${' '.repeat(9)}│ ${chalk.yellow(`▲ WARNING — ${flagLabel(top.type)}`)}`);
   } else {
     console.error(`  ${' '.repeat(9)}│ ${chalk.dim('○ clean')}`);
   }
