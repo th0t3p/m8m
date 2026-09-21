@@ -42,10 +42,25 @@
         Diff
       </a>
     </nav>
+    <div class="stats-bar" id="stats-bar" hidden></div>
   </header>
 
   <main id="app" class="container"></main>
   <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <button class="help-btn" type="button" id="help-btn" aria-haspopup="dialog" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">?</button>
+
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title">
+    <h2 id="help-title">Keyboard shortcuts</h2>
+    <dl class="help-list">
+      <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>Timeline, Memories, Security, Diff</dd></div>
+      <div><dt><kbd>r</kbd></dt><dd>Refresh the current view</dd></div>
+      <div><dt><kbd>s</kbd></dt><dd>Focus the search box</dd></div>
+      <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
+      <div><dt><kbd>Esc</kbd></dt><dd>Close this list, or leave the search box</dd></div>
+    </dl>
+    <form method="dialog"><button class="btn ghost" type="submit">Close</button></form>
+  </dialog>
 
   <script src="app.js"></script>
 </body>

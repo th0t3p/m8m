@@ -1132,6 +1132,20 @@ function countChanged(lines, ranges) {
  *  A whole-file dump buries the signal, so changed lines carry the view. */
 const DIFF_VISIBLE_CHANGES = 5;
 
+/** A diff rendered in full. Callers that gate a destructive action on it need
+ *  every line visible, so only diffBlock collapses. */
+function diffPre(oldText, newText) {
+  const pre = el('pre', { class: 'diff-lines' });
+  const lines = diffLines(oldText, newText);
+  const hunks = diffHunks(lines);
+  if (!hunks.length) {
+    pre.appendChild(el('span', { class: 'dl dl-ctx', text: 'No line-level changes.' }));
+    return pre;
+  }
+  renderDiffHunks(pre, lines, hunks);
+  return pre;
+}
+
 function diffBlock(oldText, newText) {
   const lines = diffLines(oldText, newText);
   const hunks = diffHunks(lines);
@@ -1672,14 +1686,7 @@ async function openFileRollback(doc, body, detailRow, button) {
     ));
     panel.appendChild(el('div', { class: 'rollback-note', text: 'The earlier content is written back to the file on disk and re-imported. Lines marked − are dropped, + are restored.' }));
 
-    const pre = el('pre', { class: 'doc-raw diff-lines' });
-    for (const [sigil, line] of diffLines(preview.before, preview.after)) {
-      pre.appendChild(el('span', {
-        class: sigil === '-' ? 'diff-del' : sigil === '+' ? 'diff-add' : '',
-        text: `${sigil === ' ' ? ' ' : sigil} ${line}\n`,
-      }));
-    }
-    panel.appendChild(pre);
+    panel.appendChild(diffPre(preview.before, preview.after));
 
     panel.appendChild(el('div', { class: 'rollback-actions' },
       el('button', {
@@ -1761,7 +1768,101 @@ function refresh() {
   view()
     .catch((err) => showError(err, refresh))
     .finally(() => $app.removeAttribute('aria-busy'));
+  renderStats();
 }
+
+/* ---------------------------------------------------------- global stats */
+
+// The unresolved critical count has to be readable from every tab, not just
+// Security. Each source is optional, so a dashboard process missing one of the
+// routes still reports the numbers it does have.
+async function renderStats() {
+  const host = document.getElementById('stats-bar');
+  if (!host) return;
+
+  const [stats, timeline, events] = await Promise.all([
+    load('memories/stats', '/api/memories/stats').catch(() => null),
+    load('timeline', '/api/timeline').catch(() => null),
+    load('events', '/api/events').catch(() => null),
+  ]);
+
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const items = [];
+  if (stats) items.push({ text: plural(stats.total, 'memory', 'memories') });
+  if (timeline) items.push({ text: plural(timeline.length, 'change', 'changes') });
+
+  let critical = 0;
+  if (events) {
+    const open = events.filter((e) => !e.resolved_at);
+    critical = open.filter((e) => e.severity === 'critical').length;
+    const warnings = open.filter((e) => e.severity === 'warning').length;
+    items.push({ text: `${critical} critical`, variant: 'crit', marked: critical > 0 });
+    items.push({ text: plural(warnings, 'warning', 'warnings'), variant: 'warn', marked: warnings > 0 });
+  }
+
+  host.textContent = '';
+  host.hidden = !items.length;
+  items.forEach((item, index) => {
+    if (index) host.appendChild(el('span', { class: 'sep', text: '·' }));
+    host.appendChild(el('span', { class: `stat-item${item.variant ? ` ${item.variant}` : ''}` },
+      item.marked ? el('span', { class: 'mark' }) : null,
+      el('span', { text: item.text }),
+    ));
+  });
+  host.classList.toggle('has-critical', critical > 0);
+  syncTopbarHeight();
+}
+
+/* ------------------------------------------------------ keyboard shortcuts */
+
+const SHORTCUT_VIEWS = ['timeline', 'memories', 'security', 'diff'];
+const $help = document.getElementById('help-dialog');
+
+function isTyping(node) {
+  return node instanceof HTMLElement
+    && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA'
+      || node.tagName === 'SELECT' || node.isContentEditable);
+}
+
+document.getElementById('help-btn').addEventListener('click', () => $help.showModal());
+
+// One listener for the whole app. Shortcuts stay out of the way while a field
+// has focus, where the same keys are ordinary typing.
+window.addEventListener('keydown', (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+  if (isTyping(event.target)) {
+    if (event.key === 'Escape') event.target.blur();
+    return;
+  }
+  if ($help.open) return; // the dialog owns Escape and tabbing while it is up
+
+  if (event.key === '?') {
+    event.preventDefault();
+    $help.showModal();
+    return;
+  }
+  if (event.key === 'r' || event.key === 'R') {
+    event.preventDefault();
+    invalidate();
+    refresh();
+    return;
+  }
+  if (event.key === 's' || event.key === 'S') {
+    const field = $app.querySelector('input');
+    if (field) {
+      event.preventDefault();
+      field.focus();
+      field.select();
+    }
+    return;
+  }
+  const index = Number(event.key);
+  if (Number.isInteger(index) && index >= 1 && index <= SHORTCUT_VIEWS.length) {
+    event.preventDefault();
+    location.hash = `#/${SHORTCUT_VIEWS[index - 1]}`;
+  }
+});
 
 function renderRoute() {
   activateTab(viewFromHash());
