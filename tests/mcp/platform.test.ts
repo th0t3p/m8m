@@ -47,6 +47,13 @@ describe('detectPlatform env sniffing', () => {
     envOf({});
     expect(detectPlatform()).toBe('unknown');
   });
+
+  // Regression: this machine's DSH env also inherits CLAUDE_CODE_* vars, and
+  // the old keyword order let `claude` win over `dsh` (dsh was listed last).
+  it('prefers dsh when DSH_* and CLAUDE_CODE_* coexist', () => {
+    envOf({ DSH_HOME: 'x', CLAUDE_CODE_AUTO_COMPACT_WINDOW: 'y', ANTHROPIC_MODEL: 'z' });
+    expect(detectPlatform()).toBe('dsh');
+  });
 });
 
 describe('setClientPlatform', () => {

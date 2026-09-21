@@ -51,12 +51,18 @@ export async function startMcpServer(): Promise<void> {
     );
   }
 
+  // Record the client's self-reported name after the initialize handshake
+  // completes. `connect()` only starts the transport and returns before the
+  // initialize request has been handled, so reading getClientVersion() there
+  // yields undefined. The SDK fires `oninitialized` once the client sends
+  // `notifications/initialized`, which is guaranteed to be after `_oninitialize`
+  // has captured clientInfo.
+  server.server.oninitialized = () => {
+    setClientPlatform(server.server.getClientVersion()?.name);
+  };
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
-
-  // After the initialize handshake, record the client's self-reported name so
-  // memories are stamped with the right platform regardless of install method.
-  setClientPlatform(server.server.getClientVersion()?.name);
 
   // When the client disconnects (stdin closes), stop the watcher + snapshot
   // timer so the process exits cleanly instead of lingering on open handles.

@@ -25,6 +25,9 @@ const PLATFORMS: SourcePlatform[] = [
 const ENV_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = [
   { keyword: 'codebuddy', platform: 'codebuddy' },
   { keyword: 'deepseek', platform: 'dsh' },
+  // `dsh` must precede `claude`: this machine's DSH env also inherits
+  // CLAUDE_CODE_* / ANTHROPIC_* vars, so a later `dsh` never wins.
+  { keyword: 'dsh', platform: 'dsh' },
   { keyword: 'claude_desktop', platform: 'claude_desktop' },
   { keyword: 'claude', platform: 'claude_code' },
   { keyword: 'cursor', platform: 'cursor' },
@@ -42,7 +45,6 @@ const ENV_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = [
   { keyword: 'qoder', platform: 'qoder' },
   { keyword: 'qwen', platform: 'qoder' },
   { keyword: 'chatgpt', platform: 'chatgpt_web' },
-  { keyword: 'dsh', platform: 'dsh' },
 ];
 
 // Populated from the MCP `initialize` handshake (clientInfo.name) once the
