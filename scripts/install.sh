@@ -13,6 +13,11 @@ if ! npm install; then
   npm install
 fi
 
+# Build explicitly (the package has no `prepare` script, so a global install
+# never rebuilds as root and can't leave dist/ owned by root).
+echo "→ Building…"
+npm run build
+
 is_writable_dir() {
   [ -d "$1" ] || return 1
   local probe="$1/.m8m-wtest"
