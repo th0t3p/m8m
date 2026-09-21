@@ -445,7 +445,9 @@ mark {
 .tl-head .rule { grid-column: 2 / -1; }
 
 .tl-row {
-  padding: var(--sp-3) var(--sp-2);
+  /* Two-line previews already carry the context; the padding is what was
+     costing a screenful of scroll across 30+ rows. */
+  padding: var(--sp-2) var(--sp-2);
   border-bottom: 1px solid var(--border);
   transition: background var(--dur) var(--ease);
 }
@@ -848,15 +850,25 @@ tr:hover td { background: var(--surface); }
   .stat-strip { gap: var(--sp-4); }
   .stat + .stat { padding-left: var(--sp-4); }
 
-  /* table becomes a stacked list; chips are self-describing so no labels needed */
+  /* Table becomes a card. Content takes its own line; the rest wraps onto a
+     compact meta line with the action pushed to the trailing edge, rather than
+     one field per line. */
   thead { display: none; }
-  table, tbody, tr, td { display: block; width: 100%; }
-  tr {
+  table, tbody { display: block; width: 100%; }
+  tr:not(.doc-detail-row) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
     padding: var(--sp-3) var(--sp-2);
     border-bottom: 1px solid var(--border);
   }
-  td { padding: 0; border: 0; }
-  td + td { margin-top: var(--sp-2); }
+  tr:not(.doc-detail-row) > td:first-child { flex: 1 1 100%; }
+  tr:not(.doc-detail-row) > td:last-child { margin-left: auto; }
+  .doc-detail-row { display: block; }
+  td { display: block; padding: 0; border: 0; }
+  /* An empty placeholder is noise once the row is a single wrapping line. */
+  td:has(> .flag-list > .meta:only-child) { display: none; }
   tr:hover td { background: transparent; }
   .trust { justify-content: flex-start; }
   .row-actions { justify-content: flex-start; }
