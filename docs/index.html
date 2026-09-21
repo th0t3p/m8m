@@ -434,6 +434,308 @@ footer {
 footer a { color: var(--purple-400); text-decoration: none; }
 footer a:hover { text-decoration: underline; }
 
+/* ── Dashboard Mockup ── */
+.dashboard-body {
+  background: var(--terminal-bg);
+  font-family: 'Inter', sans-serif;
+  overflow-y: auto;
+  max-height: 440px;
+}
+
+.dash-global-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px;
+  font-size: 0.65rem;
+  color: var(--terminal-dim);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.dash-gs-sep { color: rgba(255,255,255,0.1); }
+.dash-gs-crit { color: #f87171; }
+.dash-gs-warn { color: #fbbf24; }
+
+.dash-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.dash-nav-tab {
+  font-size: 0.72rem;
+  color: var(--terminal-dim);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dash-nav-tab:hover { color: #c4b5fd; }
+.dash-nav-active {
+  background: var(--purple-600);
+  color: white !important;
+}
+
+.dash-tab-content { padding: 16px 20px 20px; }
+
+.dash-section-head { margin-bottom: 12px; }
+.dash-h2 { font-size: 1.05rem; font-weight: 600; color: #e2ddf8; }
+.dash-sub { font-size: 0.72rem; color: var(--terminal-dim); margin-left: 8px; }
+
+.dash-pills { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.dash-pill {
+  font-size: 0.68rem;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--terminal-dim);
+  cursor: default;
+}
+.dash-pill-active {
+  background: var(--purple-600);
+  border-color: var(--purple-600);
+  color: white;
+}
+
+/* Timeline */
+.dash-day-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #e2ddf8;
+  padding: 8px 0 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 8px;
+}
+.dash-tl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.dash-tl-time {
+  font-size: 0.65rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--terminal-dim);
+  width: 56px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.dash-tl-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.dash-tl-green { background: #4ade80; }
+.dash-tl-red { background: #f87171; }
+.dash-tl-dim { background: #4a4560; }
+.dash-tl-body { flex: 1; min-width: 0; }
+.dash-tl-text {
+  font-size: 0.75rem;
+  color: #b0a8c8;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-tl-tags { display: flex; gap: 4px; margin-top: 4px; align-items: center; flex-wrap: wrap; }
+.dash-tag {
+  font-size: 0.58rem;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #b0a8c8;
+}
+.dash-tag-green { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.25); color: #4ade80; }
+.dash-tag-red { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.25); color: #f87171; }
+.dash-tag-warn { background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25); color: #fbbf24; }
+.dash-tag-info { background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.25); color: #60a5fa; }
+.dash-tl-hash { font-size: 0.58rem; font-family: 'JetBrains Mono', monospace; color: var(--terminal-dim); }
+.dash-tl-link { font-size: 0.65rem; color: var(--purple-400); margin-top: 2px; cursor: default; }
+.dash-tl-text-2line { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dash-tl-text-strike { text-decoration: line-through; opacity: 0.6; }
+.dash-tl-border-green { border-left: 2px solid #4ade80; padding-left: 8px; }
+.dash-tl-border-red { border-left: 2px solid #f87171; padding-left: 8px; }
+.dash-tl-border-amber { border-left: 2px solid #fbbf24; padding-left: 8px; }
+
+.dash-mem-meta { font-size: 0.6rem; color: var(--terminal-dim); font-family: 'JetBrains Mono', monospace; margin-top: 3px; }
+.dash-mem-dim { color: var(--terminal-dim); }
+.dash-trust-bar { display: inline-block; width: 32px; height: 4px; background: linear-gradient(90deg, var(--terminal-dim) 0%, #c4b5fd 100%); border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+.dash-sec-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: #b0a8c8;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+.dash-sec-collapsed { opacity: 0.7; }
+.dash-sec-count { font-size: 0.72rem; color: var(--terminal-dim); }
+.dash-sec-expand { font-size: 0.68rem; color: var(--purple-400); margin-left: auto; cursor: default; }
+
+.dash-diff-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  line-height: 1.6;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin: 6px 0;
+}
+.dash-diff-ctx { padding: 1px 10px; color: var(--terminal-dim); }
+.dash-diff-add { padding: 1px 10px; color: #4ade80; background: rgba(74,222,128,0.08); }
+.dash-diff-del { padding: 1px 10px; color: #f87171; background: rgba(248,113,113,0.08); }
+
+/* Memories table */
+.dash-mem-table { font-size: 0.72rem; }
+.dash-mem-header {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-weight: 600;
+  color: var(--terminal-dim);
+  font-size: 0.68rem;
+}
+.dash-mem-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  align-items: center;
+  color: #b0a8c8;
+  font-size: 0.7rem;
+}
+.dash-mem-col-content { flex: 2; min-width: 0; }
+.dash-mem-col-sm { flex: 0 0 72px; text-align: center; }
+.dash-mem-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #b0a8c8;
+}
+.dash-trust {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: #e2ddf8;
+}
+.dash-status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 3px; }
+
+/* Security */
+.dash-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.dash-stat {
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 8px;
+  padding: 12px 10px;
+  text-align: center;
+}
+.dash-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #e2ddf8;
+  font-family: 'JetBrains Mono', monospace;
+}
+.dash-stat-value.dash-crit { color: #f87171; }
+.dash-stat-value.dash-warn-v { color: #fbbf24; }
+.dash-stat-value.dash-ok { color: #4ade80; }
+.dash-stat-label {
+  font-size: 0.62rem;
+  color: var(--terminal-dim);
+  margin-top: 2px;
+}
+
+.dash-sec-event {
+  border-left: 2px solid rgba(124,58,237,0.3);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 0 6px 6px 0;
+  background: rgba(255,255,255,0.02);
+}
+.dash-sec-head-row { display: flex; align-items: center; gap: 8px; }
+.dash-sec-title { font-size: 0.82rem; font-weight: 600; color: #e2ddf8; flex: 1; }
+.dash-sec-body { font-size: 0.72rem; color: var(--terminal-dim); margin: 6px 0; }
+.dash-sec-source { font-size: 0.65rem; color: var(--terminal-dim); display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.dash-sec-actions { display: flex; gap: 6px; margin-top: 8px; }
+.dash-action-btn {
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--purple-600);
+  color: white;
+  cursor: default;
+}
+.dash-action-ghost {
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #b0a8c8;
+  cursor: default;
+}
+
+.dash-sev {
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.dash-sev-crit { background: rgba(248,113,113,0.15); color: #f87171; }
+.dash-sev-warn { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.dash-sev-info { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+.dash-event-time {
+  font-size: 0.65rem;
+  color: var(--terminal-dim);
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Diff */
+.dash-diff-section-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--terminal-dim);
+  letter-spacing: 0.04em;
+  margin: 14px 0 8px;
+}
+.dash-diff-item {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  align-items: flex-start;
+}
+.dash-diff-plus {
+  color: #4ade80;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.dash-diff-tilde {
+  color: #fbbf24;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.dash-diff-body { flex: 1; min-width: 0; }
+.dash-diff-file { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; }
+.dash-diff-fname { font-size: 0.78rem; font-weight: 600; color: #e2ddf8; }
+.dash-diff-path { font-size: 0.65rem; color: var(--terminal-dim); font-family: 'JetBrains Mono', monospace; }
+
 /* ── Responsive ── */
 @media (max-width: 640px) {
   .hero { padding: 60px 0 40px; }
@@ -442,6 +744,9 @@ footer a:hover { text-decoration: underline; }
   .features-grid { grid-template-columns: 1fr; gap: 16px; }
   .terminal-body { font-size: 0.72rem; padding: 16px; min-height: 300px; }
   .install-block { font-size: 0.8rem; padding: 12px 16px; }
+  .dash-stat-row { grid-template-columns: repeat(2, 1fr); }
+  .dash-mem-col-sm { flex: 0 0 50px; font-size: 0.6rem; }
+  .dash-nav { overflow-x: auto; }
 }
 
 /* ── Reduce motion ── */
@@ -481,14 +786,218 @@ footer a:hover { text-decoration: underline; }
         <span class="terminal-dot red"></span>
         <span class="terminal-dot yellow"></span>
         <span class="terminal-dot green"></span>
-        <span class="terminal-title">m8m — scan</span>
+        <span class="terminal-title" id="termTitle">m8m — scan</span>
       </div>
       <div class="terminal-body" id="termBody"></div>
+      <div class="dashboard-body" id="dashBody" style="display:none">
+        <!-- global stats bar -->
+        <div class="dash-global-stats">
+          <span>25 memories</span><span class="dash-gs-sep">·</span>
+          <span>32 changes</span><span class="dash-gs-sep">·</span>
+          <span class="dash-gs-crit">● 1 critical</span><span class="dash-gs-sep">·</span>
+          <span class="dash-gs-warn">● 3 warnings</span>
+        </div>
+        <!-- dashboard nav -->
+        <div class="dash-nav">
+          <span class="dash-nav-tab dash-nav-active" onclick="switchDashTab(this,'dtTimeline')">◷ Timeline</span>
+          <span class="dash-nav-tab" onclick="switchDashTab(this,'dtMemories')">⊙ Memories</span>
+          <span class="dash-nav-tab" onclick="switchDashTab(this,'dtSecurity')">◈ Security</span>
+          <span class="dash-nav-tab" onclick="switchDashTab(this,'dtDiff')">⇄ Diff</span>
+        </div>
+
+        <!-- Timeline tab -->
+        <div class="dash-tab-content" id="dtTimeline">
+          <div class="dash-section-head">
+            <span class="dash-h2">Timeline</span>
+            <span class="dash-sub">32 memory changes, newest first</span>
+          </div>
+          <div class="dash-pills">
+            <span class="dash-pill dash-pill-active">All 32</span>
+            <span class="dash-pill">Added 24</span>
+            <span class="dash-pill">Modified 4</span>
+            <span class="dash-pill">Status 2</span>
+            <span class="dash-pill">Deleted 1</span>
+          </div>
+          <div class="dash-timeline">
+            <div class="dash-day-label">Today</div>
+            <div class="dash-tl-item dash-tl-border-green">
+              <span class="dash-tl-time">01:12 AM</span>
+              <span class="dash-tl-dot dash-tl-green"></span>
+              <div class="dash-tl-body">
+                <div class="dash-tl-text dash-tl-text-2line">Prefers concise answers, with a short code example before the explanation. Applies to code review as well as to new work…</div>
+                <div class="dash-tl-link">Show full content</div>
+                <div class="dash-tl-tags"><span class="dash-tag dash-tag-green">Added</span><span class="dash-tag">Claude Code</span><span class="dash-tag">MCP</span><span class="dash-tl-hash">4f1a92c7</span></div>
+              </div>
+            </div>
+            <div class="dash-tl-item dash-tl-border-red">
+              <span class="dash-tl-time">12:04 AM</span>
+              <span class="dash-tl-dot dash-tl-red"></span>
+              <div class="dash-tl-body">
+                <div class="dash-tl-text dash-tl-text-strike">Project pins Node 18. The toolchain now runs on Node 22, so this note is out of date.</div>
+                <div class="dash-tl-tags"><span class="dash-tag dash-tag-red">Deleted</span><span class="dash-tag">Claude Code</span><span class="dash-tag">MCP</span><span class="dash-tl-hash">b83e5d10</span></div>
+              </div>
+            </div>
+            <div class="dash-tl-item dash-tl-border-green">
+              <span class="dash-tl-time">12:01 AM</span>
+              <span class="dash-tl-dot dash-tl-green"></span>
+              <div class="dash-tl-body">
+                <div class="dash-tl-text">Docs live in ./docs and publish from the main branch.</div>
+                <div class="dash-tl-tags"><span class="dash-tag dash-tag-green">Added</span><span class="dash-tag">Claude Code</span><span class="dash-tag">MCP</span><span class="dash-tl-hash">c07b4e91</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Memories tab -->
+        <div class="dash-tab-content" id="dtMemories" style="display:none">
+          <div class="dash-section-head">
+            <span class="dash-h2">Memories</span>
+            <span class="dash-sub">20 agent · 5 file memories · 3 flagged</span>
+          </div>
+          <div class="dash-pills">
+            <span class="dash-pill dash-pill-active">All 20</span>
+            <span class="dash-pill">Active 19</span>
+            <span class="dash-pill">Quarantined 0</span>
+            <span class="dash-pill">Flagged 3</span>
+          </div>
+          <div class="dash-mem-table">
+            <div class="dash-mem-header">
+              <span class="dash-mem-col-content">Content</span>
+              <span class="dash-mem-col-sm">Platform</span>
+              <span class="dash-mem-col-sm">Trust</span>
+              <span class="dash-mem-col-sm">Flags</span>
+              <span class="dash-mem-col-sm">Status</span>
+              <span class="dash-mem-col-sm">Actions</span>
+            </div>
+            <div class="dash-mem-row">
+              <div class="dash-mem-col-content"><div class="dash-mem-text">Prefers concise answers, with a short code example before the explanation.</div><div class="dash-mem-meta">4f1a92c7 Preference · v1 · seen 4s ago</div></div>
+              <span class="dash-mem-col-sm"><span class="dash-tag">Claude Code</span></span>
+              <span class="dash-mem-col-sm"><span class="dash-trust-bar"></span><span class="dash-trust">0.90</span></span>
+              <span class="dash-mem-col-sm dash-mem-dim">—</span>
+              <span class="dash-mem-col-sm"><span class="dash-status-dot dash-tl-green"></span> Active</span>
+              <span class="dash-mem-col-sm"><span class="dash-action-ghost">Quarantine</span></span>
+            </div>
+            <div class="dash-mem-row">
+              <div class="dash-mem-col-content"><div class="dash-mem-text">Always run the test suite before opening a pull request…</div><div class="dash-mem-meta">b83e5d10 Instruction · v1 · seen 1h ago</div></div>
+              <span class="dash-mem-col-sm"><span class="dash-tag">Claude Code</span></span>
+              <span class="dash-mem-col-sm"><span class="dash-trust-bar"></span><span class="dash-trust">0.50</span></span>
+              <span class="dash-mem-col-sm"><span class="dash-tag dash-tag-warn">Instruction</span></span>
+              <span class="dash-mem-col-sm"><span class="dash-status-dot dash-tl-green"></span> Active</span>
+              <span class="dash-mem-col-sm"><span class="dash-action-ghost">Quarantine</span></span>
+            </div>
+            <div class="dash-mem-row">
+              <div class="dash-mem-col-content"><div class="dash-mem-text">Project pins Node 18. The toolchain now runs on Node 22.</div><div class="dash-mem-meta">c07b4e91 Unknown · v1 · seen 2h ago</div></div>
+              <span class="dash-mem-col-sm"><span class="dash-tag">Claude Code</span></span>
+              <span class="dash-mem-col-sm"><span class="dash-trust-bar"></span><span class="dash-trust">0.70</span></span>
+              <span class="dash-mem-col-sm dash-mem-dim">—</span>
+              <span class="dash-mem-col-sm">Deleted</span>
+              <span class="dash-mem-col-sm"><span class="dash-action-ghost">Quarantine</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Security tab -->
+        <div class="dash-tab-content" id="dtSecurity" style="display:none">
+          <div class="dash-section-head">
+            <span class="dash-h2">Security</span>
+            <span class="dash-sub">Every flag the analyzer raised, most severe first</span>
+          </div>
+          <div class="dash-stat-row">
+            <div class="dash-stat"><div class="dash-stat-value">5</div><div class="dash-stat-label">unresolved events</div></div>
+            <div class="dash-stat"><div class="dash-stat-value dash-crit">1</div><div class="dash-stat-label">● unresolved critical</div></div>
+            <div class="dash-stat"><div class="dash-stat-value dash-warn-v">3</div><div class="dash-stat-label">● unresolved warnings</div></div>
+            <div class="dash-stat"><div class="dash-stat-value">10</div><div class="dash-stat-label">events on record</div></div>
+          </div>
+          <div class="dash-pills">
+            <span class="dash-pill dash-pill-active">Unresolved 5</span>
+            <span class="dash-pill">All 10</span>
+            <span class="dash-pill">Critical 2</span>
+            <span class="dash-pill">Warning 6</span>
+            <span class="dash-pill">Info 2</span>
+          </div>
+          <div class="dash-sec-event">
+            <div class="dash-sec-head-row">
+              <span class="dash-sev dash-sev-crit">Critical</span>
+              <span class="dash-sec-title">Credential detected</span>
+              <span class="dash-event-time">7d ago</span>
+            </div>
+            <div class="dash-sec-code">Never commit API keys. Load them from the environment and keep them out of prompts…</div>
+            <div class="dash-sec-source"><span class="dash-tag">file</span> AGENTS.md · <span class="dash-tag">Generic agents</span> · <span class="dash-tl-hash">§ Setup 6e2c8f31</span></div>
+            <div class="dash-sec-body">Possible credential: API key pattern in a code block</div>
+            <div class="dash-sec-actions"><span class="dash-action-ghost">✓ Resolve</span></div>
+          </div>
+          <div class="dash-sec-event dash-sec-collapsed">
+            <div class="dash-sec-head-row">
+              <span class="dash-sev dash-sev-warn">Warning</span>
+              <span class="dash-sec-title">Instruction detected</span>
+              <span class="dash-sec-count">· ×3</span>
+              <span class="dash-event-time">1h ago</span>
+              <span class="dash-sec-expand">Show all 3</span>
+            </div>
+          </div>
+          <div class="dash-sec-event">
+            <div class="dash-sec-head-row">
+              <span class="dash-sev dash-sev-info">Info</span>
+              <span class="dash-sec-title">URL detected</span>
+              <span class="dash-event-time">9d ago</span>
+            </div>
+            <div class="dash-sec-code">curl -s https://api.example.com/v1/status -H 'Accept: application/json'…</div>
+            <div class="dash-sec-source"><span class="dash-tag">file</span> NOTES.md · <span class="dash-tag">Codex</span> · <span class="dash-tl-hash">§ Monitoring 2b7e4a90</span></div>
+            <div class="dash-sec-body">URL detected: https://api.example.com/v1/status</div>
+            <div class="dash-sec-actions"><span class="dash-action-ghost">✓ Resolve</span></div>
+          </div>
+        </div>
+
+        <!-- Diff tab -->
+        <div class="dash-tab-content" id="dtDiff" style="display:none">
+          <div class="dash-section-head">
+            <span class="dash-h2">Diff</span>
+            <span class="dash-sub">Against snapshot 91636464, taken 14m ago</span>
+          </div>
+          <div class="dash-pills">
+            <span class="dash-pill">● 0 added</span>
+            <span class="dash-pill">● 0 modified</span>
+            <span class="dash-pill">0 deleted</span>
+            <span class="dash-pill dash-tag-info">● 9 file changes</span>
+          </div>
+          <div class="dash-diff-section-label">FILE MEMORIES (9 CHANGES)</div>
+          <div class="dash-diff-file">
+            <span class="dash-diff-tilde">~</span>
+            <div style="flex:1;min-width:0">
+              <div class="dash-diff-fname">AGENTS.md</div>
+              <div class="dash-diff-path">~/dev/api-service/AGENTS.md</div>
+              <div class="dash-diff-code">
+                <div class="dash-diff-ctx">  ## Deployment</div>
+                <div class="dash-diff-add">+ Deploys run from CI only. Never release from a laptop.</div>
+                <div class="dash-diff-add">+</div>
+                <div class="dash-diff-add">+ Roll back by redeploying the previous image tag, then wait for the health</div>
+                <div class="dash-diff-add">+ check to go green before re-running the migration.</div>
+              </div>
+              <div class="dash-tl-link">Show 12 more changes</div>
+              <div class="dash-tl-tags"><span class="dash-tag">file</span> · <span class="dash-tag">Codex</span> · <span class="dash-tl-hash">6d ago 9d4b1e60</span></div>
+            </div>
+          </div>
+          <div class="dash-diff-file">
+            <span class="dash-diff-tilde">~</span>
+            <div style="flex:1;min-width:0">
+              <div class="dash-diff-fname">AGENTS.md</div>
+              <div class="dash-diff-path">~/dev/api-service/AGENTS.md</div>
+              <div class="dash-diff-code">
+                <div class="dash-diff-ctx">  ## Local setup</div>
+                <div class="dash-diff-del">- Debug logging is on by default.</div>
+                <div class="dash-diff-del">-</div>
+              </div>
+              <div class="dash-tl-tags"><span class="dash-tag">file</span> · <span class="dash-tag">Codex</span> · <span class="dash-tl-hash">7d ago 1c8f3b52</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="demo-controls">
       <button class="demo-btn active" data-demo="scan" onclick="runDemo('scan')">scan</button>
       <button class="demo-btn" data-demo="audit" onclick="runDemo('audit')">audit</button>
       <button class="demo-btn" data-demo="watch" onclick="runDemo('watch')">watch</button>
+      <button class="demo-btn" data-demo="dashboard" onclick="runDemo('dashboard')">dashboard</button>
     </div>
   </div>
 </section>
@@ -600,6 +1109,13 @@ function copyInstall() {
   setTimeout(() => toast.classList.remove('show'), 1200);
 }
 
+function switchDashTab(el, tabId) {
+  document.querySelectorAll('.dash-nav-tab').forEach(t => t.classList.remove('dash-nav-active'));
+  el.classList.add('dash-nav-active');
+  document.querySelectorAll('.dash-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById(tabId).style.display = 'block';
+}
+
 const demos = {
   scan: [
     { type: 'prompt', text: '$ npx @th0t3p/m8m scan' },
@@ -653,7 +1169,7 @@ const demos = {
     ]},
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '    ' },
-      { cls: 'term-dim', text: '"paris@****.com"  →  user-context.md:3' },
+      { cls: 'term-dim', text: '"user@****.com"  →  user-context.md:3' },
     ]},
     { type: 'blank' },
     { type: 'mixed', parts: [
@@ -745,7 +1261,7 @@ const demos = {
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '           ' },
       { cls: 'term-label', text: '│ ' },
-      { cls: 'term-dim', text: '+  "Works at Yuan Technology LLC"' },
+      { cls: 'term-dim', text: '+  "Works at Northwind Traders"' },
     ]},
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '           ' },
@@ -762,7 +1278,7 @@ const demos = {
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '           ' },
       { cls: 'term-label', text: '│ ' },
-      { cls: 'term-dim', text: '+  "AWS account: AKIA3E****"' },
+      { cls: 'term-dim', text: '+  "AWS account: AKIA****...****"' },
     ]},
     { type: 'mixed', parts: [
       { cls: 'term-dim', text: '           ' },
@@ -801,8 +1317,27 @@ function runDemo(name) {
   document.querySelector(`[data-demo="${name}"]`).classList.add('active');
 
   const body = document.getElementById('termBody');
-  body.innerHTML = '';
+  const dash = document.getElementById('dashBody');
+  const title = document.getElementById('termTitle');
   if (currentTimer) clearTimeout(currentTimer);
+
+  if (name === 'dashboard') {
+    body.style.display = 'none';
+    dash.style.display = 'block';
+    title.textContent = 'm8m — dashboard · localhost:8808';
+    // animate bars
+    dash.querySelectorAll('.dash-prov-bar-fill').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0%';
+      requestAnimationFrame(() => { el.style.width = w; });
+    });
+    return;
+  }
+
+  body.style.display = 'block';
+  dash.style.display = 'none';
+  title.textContent = `m8m — ${name}`;
+  body.innerHTML = '';
 
   const lines = demos[name];
   let i = 0;
