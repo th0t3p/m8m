@@ -12,3 +12,5 @@ coverage/
 .env
 .env.local
 DEVLOG.md
+# Machine-specific npm config (e.g. local proxy) — never commit.
+.npmrc
