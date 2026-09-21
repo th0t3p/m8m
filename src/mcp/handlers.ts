@@ -12,8 +12,16 @@ import {
 } from '../core/db.js';
 import type { MemoryEntry, SourcePlatform, SourceType } from '../core/types.js';
 
-/** Best-effort detection of which harness is connected. */
+const PLATFORMS: SourcePlatform[] = [
+  'claude_web', 'chatgpt_web', 'claude_code', 'cursor',
+  'claude_desktop', 'dsh', 'mem0', 'local_file', 'manual_import', 'unknown',
+];
+
+/** Which harness is connected. Prefers the explicit M8M_PLATFORM set by
+ * `m8m mcp add <client>`; falls back to environment sniffing. */
 export function detectPlatform(): SourcePlatform {
+  const explicit = process.env.M8M_PLATFORM;
+  if (explicit && (PLATFORMS as string[]).includes(explicit)) return explicit as SourcePlatform;
   if (process.env.CURSOR || process.env.CURSOR_TRACE_ID) return 'cursor';
   if (process.env.DSH_HOME || process.env.DSH_SESSION_ID) return 'dsh';
   if (process.env.CLAUDE_CODE_ENTRYPOINT || process.env.CLAUDECODE) return 'claude_code';

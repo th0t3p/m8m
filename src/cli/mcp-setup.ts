@@ -20,9 +20,20 @@ interface ServerSpec {
   env?: Record<string, string>;
 }
 
-function serverSpec(dataDir?: string): ServerSpec {
+// Which provenance platform each MCP client should self-report. Baked into the
+// generated config so the server knows its caller deterministically instead of
+// guessing from environment variables.
+const CLIENT_PLATFORM: Record<McpClient, string> = {
+  codex: 'local_file',
+  claude: 'claude_code',
+  cursor: 'cursor',
+  dsh: 'dsh',
+};
+
+function serverSpec(client: McpClient, dataDir?: string): ServerSpec {
   const spec: ServerSpec = { command: 'npx', args: ['-y', '@th0t3p/m8m', 'mcp'] };
-  if (dataDir) spec.env = { M8M_HOME: dataDir };
+  spec.env = { M8M_PLATFORM: CLIENT_PLATFORM[client] };
+  if (dataDir) spec.env.M8M_HOME = dataDir;
   return spec;
 }
 
@@ -140,7 +151,7 @@ function addDsh(spec: ServerSpec): AddResult {
 }
 
 export function addM8mToClient(client: McpClient, dataDir?: string): AddResult {
-  const spec = serverSpec(dataDir);
+  const spec = serverSpec(client, dataDir);
   switch (client) {
     case 'codex':
       return addCodex(spec);
