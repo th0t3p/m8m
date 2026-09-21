@@ -355,13 +355,25 @@ export function formatScanAnalysis(
   lines.push('');
   lines.push(inProgress('Analyzing sensitivity...'));
   lines.push('');
+  lines.push(...renderFindings(events));
+  lines.push('');
 
-  // Show every unresolved finding — agent memories and file memories — not
-  // just the documents touched by this scan.
+  const providerWord = totals.providers === 1 ? 'provider' : 'providers';
+  const harnessNote = totals.totalProviders ? ` (of ${totals.totalProviders} harnesses)` : '';
+  lines.push(
+    `  ${chalk.green('✓')} ${chalk.bold.white('Scan complete.')} ${chalk.white(`${totals.entries} entries across ${totals.providers} ${providerWord}${harnessNote}.`)} ${chalk.dim('Report saved.')}`,
+  );
+
+  return lines.join('\n');
+}
+
+/** Render the security findings list + sensitivity meter (shared by scan & audit). */
+function renderFindings(events: SecurityEvent[]): string[] {
+  const out: string[] = [];
   const findings = events.filter((e) => e.severity !== 'info');
 
   if (findings.length === 0) {
-    lines.push(dim('(no sensitive findings)'));
+    out.push(dim('(no sensitive findings)'));
   } else {
     for (const e of findings) {
       const sev = e.severity;
@@ -389,9 +401,9 @@ export function formatScanAnalysis(
 
       const excerpt = sensitiveExcerpt(String(e.details?.node_content ?? e.details?.detail ?? ''));
       const src = source ? `  →  ${source}` : '';
-      lines.push(`  ${sevColor(`▲ ${SCAN_SEVERITY_LABEL[sev].padEnd(8)}`)}  ${chalk.white(title)}`);
-      lines.push(`    ${chalk.dim(`"${excerpt}"${src}`)}`);
-      lines.push('');
+      out.push(`  ${sevColor(`▲ ${SCAN_SEVERITY_LABEL[sev].padEnd(8)}`)}  ${chalk.white(title)}`);
+      out.push(`    ${chalk.dim(`"${excerpt}"${src}`)}`);
+      out.push('');
     }
   }
 
@@ -401,14 +413,110 @@ export function formatScanAnalysis(
     else if (e.severity === 'warning') counts.high++;
     else counts.medium++;
   }
-  lines.push(sensitivityMeter(counts));
+  out.push(sensitivityMeter(counts));
+  return out;
+}
+
+/** Per-provider provenance totals for `m8m audit`. */
+export interface AuditProviderStat {
+  name: string;
+  entries: number;   // agent memories + file nodes
+  files: number;     // file documents
+  oldest: string | null;
+  newest: string | null;
+  categories: Record<string, number>;  // agent-memory categories
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  claude_code: 'Claude Code',
+  claude_desktop: 'Claude Desktop',
+  claude_web: 'Claude Web',
+  chatgpt_web: 'ChatGPT Web',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  dsh: 'DeepSeek Harness',
+  'dsh-mcp-client': 'DeepSeek Harness',
+  local_file: 'Local File',
+  manual_import: 'Manual Import',
+  unknown: 'Unknown',
+};
+
+/** Humanize a raw platform string for display (verbatim names become title case). */
+export function humanizePlatform(s: string): string {
+  return PLATFORM_LABELS[s] ?? s.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  preference: 'preferences',
+  fact: 'facts',
+  instruction: 'instructions',
+  relationship: 'relationships',
+  event: 'events',
+  credential: 'credentials',
+  unknown: 'other',
+};
+
+function categoryBar(count: number): string {
+  const width = 20;
+  const filled = Math.max(0, Math.min(width, count));
+  return chalk.dim('█'.repeat(filled) + '░'.repeat(width - filled));
+}
+
+/** `YYYY-MM-DD HH:MM UTC` for a stored ISO datetime. */
+function formatUtc(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+}
+
+/**
+ * `m8m audit` output: per-provider provenance + category breakdown, then the
+ * security findings (same ▲ icons as scan) and the report path.
+ */
+export function formatAudit(
+  providers: AuditProviderStat[],
+  events: SecurityEvent[],
+  reportPath: string,
+): string {
+  const lines: string[] = [];
+  lines.push(header('Memory Audit'));
   lines.push('');
 
-  const providerWord = totals.providers === 1 ? 'provider' : 'providers';
-  const harnessNote = totals.totalProviders ? ` (of ${totals.totalProviders} harnesses)` : '';
-  lines.push(
-    `  ${chalk.green('✓')} ${chalk.bold.white('Scan complete.')} ${chalk.white(`${totals.entries} entries across ${totals.providers} ${providerWord}${harnessNote}.`)} ${chalk.dim('Report saved.')}`,
-  );
+  if (providers.length === 0) {
+    lines.push(dim('(no memories to audit)'));
+    lines.push('');
+  }
 
+  for (const p of providers) {
+    lines.push(inProgress(`Auditing ${p.name} memory provenance...`));
+    lines.push('');
+    lines.push(`  Provider    ${chalk.bold.white(p.name)}`);
+    lines.push(`  Entries     ${chalk.white(String(p.entries))}`);
+    lines.push(`  Oldest      ${chalk.white(p.oldest ? formatUtc(p.oldest) : '—')}`);
+    lines.push(`  Newest      ${chalk.white(p.newest ? formatUtc(p.newest) : '—')}`);
+    lines.push('');
+
+    const cats = Object.entries(p.categories).sort((a, b) => b[1] - a[1]);
+    if (cats.length > 0) {
+      lines.push(dim('Memory by category:'));
+      lines.push('');
+      for (const [cat, count] of cats) {
+        const label = CATEGORY_LABELS[cat] ?? cat;
+        lines.push(`  ${chalk.dim(label.padEnd(14))} ${categoryBar(count)} ${chalk.white(String(count))}`);
+      }
+    } else if (p.files > 0) {
+      lines.push(dim(`${p.files} file memor${p.files === 1 ? 'y' : 'ies'}`));
+    }
+    lines.push('');
+  }
+
+  lines.push(inProgress('Analyzing security...'));
+  lines.push('');
+  lines.push(...renderFindings(events));
+  lines.push('');
+
+  const home = homedir();
+  const display = reportPath.startsWith(`${home}/`) ? reportPath.slice(home.length + 1) : reportPath;
+  lines.push(`  ${chalk.green('✓')} ${chalk.bold.white('Audit complete.')} ${chalk.dim(`Full report: ${display}`)}`);
   return lines.join('\n');
 }

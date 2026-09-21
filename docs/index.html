@@ -1164,22 +1164,22 @@ const demos = {
   audit: [
     { type: 'prompt', text: '$ npx @th0t3p/m8m audit' },
     { type: 'blank' },
-    { type: 'info',   text: '  ◐  Auditing memory provenance across all providers...' },
+    { type: 'info',   text: '  ◐  Auditing Claude Code memory provenance...' },
     { type: 'blank' },
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Scope      ' },
-      { cls: 'term-text', text: ' all providers' },
+      { cls: 'term-label', text: '  Provider    ' },
+      { cls: 'term-text', text: ' Claude Code' },
     ]},
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Entries    ' },
+      { cls: 'term-label', text: '  Entries     ' },
       { cls: 'term-count', text: ' 47' },
     ]},
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Oldest     ' },
+      { cls: 'term-label', text: '  Oldest      ' },
       { cls: 'term-dim', text: ' 2025-11-03 14:22 UTC' },
     ]},
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Newest     ' },
+      { cls: 'term-label', text: '  Newest      ' },
       { cls: 'term-dim', text: ' 2026-09-20 09:15 UTC' },
     ]},
     { type: 'blank' },
@@ -1189,12 +1189,12 @@ const demos = {
       { n: 14, cls: 'term-label', ch: '█' },
       { n: 6, cls: 'term-bar-empty', ch: '░' },
     ], suffix: ' 14' },
-    { type: 'bar', label: '  project ctx  ', values: [
+    { type: 'bar', label: '  facts        ', values: [
       { n: 11, cls: 'term-label', ch: '█' },
       { n: 9, cls: 'term-bar-empty', ch: '░' },
     ], suffix: ' 11' },
-    { type: 'bar', label: '  personal     ', values: [
-      { n: 9, cls: 'term-warn', ch: '█' },
+    { type: 'bar', label: '  events       ', values: [
+      { n: 9, cls: 'term-label', ch: '█' },
       { n: 11, cls: 'term-bar-empty', ch: '░' },
     ], suffix: '  9' },
     { type: 'bar', label: '  credentials  ', values: [
@@ -1205,6 +1205,50 @@ const demos = {
       { n: 10, cls: 'term-dim', ch: '█' },
       { n: 10, cls: 'term-bar-empty', ch: '░' },
     ], suffix: ' 10' },
+    { type: 'blank' },
+    { type: 'info',   text: '  ◐  Auditing Codex memory provenance...' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Provider    ' },
+      { cls: 'term-text', text: ' Codex' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Entries     ' },
+      { cls: 'term-count', text: ' 12' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Oldest      ' },
+      { cls: 'term-dim', text: ' 2026-01-12 09:03 UTC' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-label', text: '  Newest      ' },
+      { cls: 'term-dim', text: ' 2026-09-19 22:41 UTC' },
+    ]},
+    { type: 'blank' },
+    { type: 'info',   text: '  ◐  Analyzing security...' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-crit', text: '  ▲ CRITICAL ' },
+      { cls: 'term-text', text: ' API key found in Claude memory' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '    "sk-ant-api03-****...****"  →  profile.md:14' },
+    ]},
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-warn', text: '  ▲ HIGH     ' },
+      { cls: 'term-text', text: ' Email address in Cursor memory' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-dim', text: '    "user@****.com"  →  user-context.md:3' },
+    ]},
+    { type: 'blank' },
+    { type: 'bar', label: '  Sensitivity ', values: [
+      { n: 1, cls: 'term-crit', ch: '█' },
+      { n: 2, cls: 'term-warn', ch: '█' },
+      { n: 5, cls: 'term-label', ch: '█' },
+      { n: 12, cls: 'term-bar-empty', ch: '░' },
+    ], suffix: ' 1 critical · 2 high · 5 medium' },
     { type: 'blank' },
     { type: 'mixed', parts: [
       { cls: 'term-ok', text: '  ✓ ' },

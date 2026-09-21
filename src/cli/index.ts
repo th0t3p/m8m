@@ -43,16 +43,17 @@ import { startMcpServer } from '../mcp/server.js';
 import { addM8mToClient, SUPPORTED_CLIENTS, type McpClient } from './mcp-setup.js';
 import { startWatcher } from '../watcher/watcher.js';
 import {
+  formatAudit,
   formatDiff,
   formatMemoryDetail,
   formatMemoryList,
   formatRollbackPreview,
   formatScanAnalysis,
-  formatSecurityEvents,
   formatStatBlock,
+  humanizePlatform,
   truncate,
 } from './formatters.js';
-import type { ScanProviderStat } from './formatters.js';
+import type { AuditProviderStat, ScanProviderStat } from './formatters.js';
 import { dim, inProgress } from './ui.js';
 import type { MemoryNode, MemoryStatus, ProviderConfig, SourcePlatform } from '../core/types.js';
 import { VERSION } from '../version.js';
@@ -463,16 +464,68 @@ program
 // --- Audit --------------------------------------------------------------
 program
   .command('audit')
-  .description('List security events (unresolved first)')
-  .option('--severity <s>', 'Filter by severity (info | warning | critical)')
-  .option('--resolved', 'Show resolved events too')
+  .description('Audit memory provenance and security across all providers')
+  .option('--severity <s>', 'Filter findings by severity (info | warning | critical)')
+  .option('--resolved', 'Show resolved findings too')
   .action((opts) => {
     ensureDb();
+
+    const byProvider = new Map<string, AuditProviderStat>();
+    const stat = (name: string): AuditProviderStat => {
+      let s = byProvider.get(name);
+      if (!s) {
+        s = { name, entries: 0, files: 0, oldest: null, newest: null, categories: {} };
+        byProvider.set(name, s);
+      }
+      return s;
+    };
+
+    for (const m of getAllMemories()) {
+      const s = stat(humanizePlatform(m.source_platform));
+      s.entries += 1;
+      s.categories[m.category] = (s.categories[m.category] ?? 0) + 1;
+      if (!s.oldest || m.first_seen < s.oldest) s.oldest = m.first_seen;
+      if (!s.newest || m.last_seen > s.newest) s.newest = m.last_seen;
+    }
+
+    for (const d of getAllDocuments()) {
+      const s = stat(humanizePlatform(d.provider ?? d.source_platform));
+      s.files += 1;
+      s.entries += d.node_count ?? 0;
+      if (!s.oldest || d.first_seen < s.oldest) s.oldest = d.first_seen;
+      if (!s.newest || d.last_seen > s.newest) s.newest = d.last_seen;
+    }
+
+    const providers = [...byProvider.values()].sort((a, b) => b.entries - a.entries);
+
     const events = getSecurityEvents({
       severity: opts.severity,
       resolved: opts.resolved ? undefined : false,
     });
-    console.log(formatSecurityEvents(events));
+
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const reportPath = join(m8mHomeDir(), `audit-${ymd}.json`);
+
+    console.log(formatAudit(providers, events, reportPath));
+
+    try {
+      const report = {
+        audited_at: now.toISOString(),
+        providers,
+        findings: events.map((e) => ({
+          severity: e.severity,
+          title: e.title,
+          file_name: e.details?.file_name,
+          line_start: e.details?.line_start,
+          provider: e.details?.provider,
+          memory_id: e.memory_id,
+        })),
+      };
+      writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    } catch {
+      // ignore write failures — the audit itself has already printed
+    }
   });
 
 // --- Docs ---------------------------------------------------------------
