@@ -105,7 +105,7 @@ m8m audit
 | `m8m files export <id> [--output <path>]` | Export a memory file's raw content (recovery) |
 | `m8m files diff <id>` | Show a memory file's change history |
 | `m8m files rollback <id> [--yes]` | Roll a memory file back to its previous version |
-| `m8m scan [--dry-run] [--yes]` | Discover + import memory files from all AI providers |
+| `m8m scan [--yes]` | Discover + import memory files from all AI providers |
 | `m8m providers` | List scan providers (vendor memory paths) |
 | `m8m providers add <name> <path> [--platform <p>] [--dir] [--ext <e>] [--desc <d>]` | Add a vendor scan target |
 | `m8m providers rm <name>` | Remove a vendor |

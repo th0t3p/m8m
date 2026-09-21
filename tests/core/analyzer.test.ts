@@ -69,13 +69,17 @@ describe('analyzer — email detection', () => {
 });
 
 describe('analyzer — credential detection', () => {
-  const pos = ['API key is sk_live_abc123', 'AKIA1234567890ABCDEF', 'password is hunter2'];
-  it('flags credentials as critical', () => {
-    for (const c of pos) {
+  it('flags API keys and passwords as critical', () => {
+    for (const c of ['API key is sk_live_abc123', 'password is hunter2']) {
       const f = analyzeEntry(c).flags.find((x) => x.type === 'contains_credential');
       expect(f, c).toBeTruthy();
       expect(f?.severity).toBe('critical');
     }
+  });
+  it('flags AWS access keys as HIGH (warning)', () => {
+    const f = analyzeEntry('AKIA1234567890ABCDEF').flags.find((x) => x.type === 'contains_credential');
+    expect(f).toBeTruthy();
+    expect(f?.severity).toBe('warning');
   });
   it('ignores ordinary content', () => {
     expect(analyzeEntry('Nothing secret here').flags.map((f) => f.type)).not.toContain('contains_credential');

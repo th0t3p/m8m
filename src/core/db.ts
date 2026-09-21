@@ -250,11 +250,14 @@ function createSecurityEvents(
     const severity = f.severity ?? map.default_severity;
     const column = ref.memory_id ? 'memory_id' : 'document_id';
     const refId = ref.memory_id ?? ref.document_id;
+    // Dedupe by event type AND the flag detail, so distinct secrets (e.g. an
+    // AWS key vs a Stripe key in one file) each get their own finding rather
+    // than collapsing into a single "credential_detected" row.
     const existing = d
       .prepare(
-        `SELECT id FROM security_events WHERE ${column} = ? AND event_type = ? AND resolved_at IS NULL LIMIT 1`,
+        `SELECT id FROM security_events WHERE ${column} = ? AND event_type = ? AND json_extract(details, '$.detail') = ? AND resolved_at IS NULL LIMIT 1`,
       )
-      .get(refId, map.event_type);
+      .get(refId, map.event_type, f.detail);
     if (existing) continue;
     createSecurityEvent({
       memory_id: ref.memory_id,

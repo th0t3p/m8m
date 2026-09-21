@@ -10,11 +10,9 @@ import type {
   MemoryDiff,
   MemoryEntry,
   M8mStats,
-  ProviderConfig,
   RollbackPreview,
   SecurityEvent,
 } from '../core/types.js';
-import type { DiscoveredMemoryFile } from '../core/scanner.js';
 import {
   dim,
   header,
@@ -255,48 +253,11 @@ function shortDate(iso: string): string {
   return `${d.getDate()} ${M[d.getMonth()]} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
-}
-
 function dirLabel(path: string): string {
   const home = homedir();
   const dir = dirname(path);
   const label = dir.startsWith(home) ? `~${dir.slice(home.length)}` : dir;
   return label.endsWith('/') ? label : `${label}/`;
-}
-
-/** Discovery table for `m8m scan`: one row per provider (found or not). */
-export function formatScanDiscovery(files: DiscoveredMemoryFile[], providers: ProviderConfig[]): string {
-  const byProvider = new Map<string, DiscoveredMemoryFile[]>();
-  for (const f of files) {
-    const list = byProvider.get(f.provider) ?? [];
-    list.push(f);
-    byProvider.set(f.provider, list);
-  }
-
-  const lines: string[] = [];
-  lines.push(header('Memory Scanner'));
-  lines.push('');
-  lines.push(inProgress('Scanning AI memory providers...'));
-  lines.push('');
-
-  for (const p of providers) {
-    const found = byProvider.get(p.name) ?? [];
-    // Only list providers that were found — an empty "not found" row for every
-    // configured-but-absent harness is noise.
-    if (found.length === 0) continue;
-    const total = found.reduce((s, f) => s + f.size, 0);
-    const count = `${found.length} file${found.length === 1 ? '' : 's'}`;
-    lines.push(`  ${chalk.green('✓')} ${chalk.bold.white(pad(p.name, 20))} ${chalk.dim(pad(truncatePath(dirLabel(found[0].path), 33), 35))} ${pad(count, 9, true)} ${pad(formatBytes(total), 9, true)}`);
-  }
-
-  lines.push('');
-  lines.push(dim(`Found ${files.length} file(s) across ${byProvider.size} provider(s)`));
-  return lines.join('\n');
 }
 
 /** Per-provider totals collected while importing during `m8m scan`. */

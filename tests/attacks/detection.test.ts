@@ -130,8 +130,9 @@ describe('Credential harvest — catches all credential types', () => {
   const results = analyzeTree(fixture('credential_harvest.md'), 'credential_harvest.md');
   const credCritical = (text: string) => hasCritical(nodeWith(results, text), 'contains_credential');
 
-  it('flags AWS access key as critical credential', () => {
-    expect(credCritical('AKIAIOSFODNN7EXAMPLE')).toBe(true);
+  it('flags AWS access key as HIGH credential (warning)', () => {
+    const n = nodeWith(results, 'AKIAIOSFODNN7EXAMPLE');
+    expect(n.flags.some((f) => f.type === 'contains_credential' && f.severity === 'warning')).toBe(true);
   });
 
   it('flags Stripe test key as critical credential', () => {
@@ -150,9 +151,10 @@ describe('Credential harvest — catches all credential types', () => {
     expect(credCritical('super_secret_jwt_key')).toBe(true);
   });
 
-  it('raises at least 5 critical flags in total', () => {
-    const criticalCount = results.flatMap((n) => n.flags).filter((f) => f.severity === 'critical').length;
-    expect(criticalCount).toBeGreaterThanOrEqual(5);
+  it('raises 4 critical + 1 high credential flags in total', () => {
+    const cred = results.flatMap((n) => n.flags).filter((f) => f.type === 'contains_credential');
+    expect(cred.filter((f) => f.severity === 'critical').length).toBeGreaterThanOrEqual(4);
+    expect(cred.filter((f) => f.severity === 'warning').length).toBeGreaterThanOrEqual(1);
   });
 
   it('leaves version notes unflagged', () => {

@@ -162,34 +162,33 @@ export function analyzeEntry(
     );
   }
 
-  // 3. Email detection
+  // 3. Email detection — an email address is sensitive PII, so it always reads
+  // as HIGH (warning), not info.
   if (hasEmail) {
     const email = content.match(EMAIL_REGEX)?.[0] ?? '';
-    const severity = instructionContext && !inCodeBlock ? 'warning' : 'info';
-    flags.push(
-      flag(
-        'contains_email',
-        `Email detected${instructionContext ? ' alongside an instruction' : ''}: ${email}`,
-        severity,
-      ),
-    );
+    flags.push(flag('contains_email', `Email detected: ${email}`, 'warning'));
   }
 
-  // 4. Credential detection (critical)
-  const credMatches: string[] = [];
-  if (AWS_KEY_REGEX.test(content)) credMatches.push('AWS access key');
-  if (GENERIC_SECRET_REGEX.test(content)) {
+  // 4. Credential detection — one flag per secret type so each surfaces as its
+  // own finding. API keys/tokens and passwords are critical; AWS access keys
+  // read as HIGH (warning).
+  const hasAws = AWS_KEY_REGEX.test(content);
+  const hasSecret = GENERIC_SECRET_REGEX.test(content);
+  const hasPassword = PASSWORD_MENTION_REGEX.test(content);
+
+  if (hasSecret) {
     const m = content.match(GENERIC_SECRET_REGEX)?.[0] ?? '';
-    credMatches.push(`secret token pattern (${m.trim()})`);
+    flags.push(flag('contains_credential', `secret token (${m.trim()})`, 'critical'));
   }
-  if (PASSWORD_MENTION_REGEX.test(content)) credMatches.push('password mention');
-  if (SECRET_KEYWORD_REGEX.test(content) && LONG_TOKEN_REGEX.test(content)) {
-    credMatches.push('long token near secret keyword');
+  if (hasAws) {
+    flags.push(flag('contains_credential', 'AWS access key', 'warning'));
   }
-  if (credMatches.length > 0) {
-    flags.push(
-      flag('contains_credential', `Possible credential: ${credMatches.join(', ')}`, 'critical'),
-    );
+  if (hasPassword) {
+    flags.push(flag('contains_credential', 'password mention', 'critical'));
+  }
+  // Fallback for secrets the specific patterns missed (Stripe/JWT-style).
+  if (!hasSecret && !hasAws && !hasPassword && SECRET_KEYWORD_REGEX.test(content) && LONG_TOKEN_REGEX.test(content)) {
+    flags.push(flag('contains_credential', 'long token near secret keyword', 'critical'));
   }
 
   // 5. Contradiction detection (warning)

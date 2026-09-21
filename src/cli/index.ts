@@ -48,7 +48,6 @@ import {
   formatMemoryList,
   formatRollbackPreview,
   formatScanAnalysis,
-  formatScanDiscovery,
   formatSecurityEvents,
   formatStatBlock,
   truncate,
@@ -319,21 +318,13 @@ program
 program
   .command('scan')
   .description('Discover + import memory files from all AI providers')
-  .option('--dry-run', 'Only show discovered files, do not import')
   .option('--yes', 'Import without prompting for confirmation')
-  .action(async (opts: { dryRun?: boolean; yes?: boolean }) => {
+  .action(async (opts: { yes?: boolean }) => {
     const config = ensureDb();
     const files = scanForMemoryFiles(config.providers);
-
-    if (opts.dryRun) {
-      console.log(formatScanDiscovery(files, config.providers));
-      return;
-    }
-
     const importable = files.filter((f) => isImportablePath(f.path));
+
     if (importable.length === 0) {
-      console.log(formatScanDiscovery(files, config.providers));
-      console.log('');
       console.log(dim('No importable memory files found.'));
       return;
     }
