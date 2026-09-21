@@ -1164,15 +1164,11 @@ const demos = {
   audit: [
     { type: 'prompt', text: '$ npx @th0t3p/m8m audit' },
     { type: 'blank' },
-    { type: 'info',   text: '  ◐  Auditing Claude Code memory provenance...' },
+    { type: 'info',   text: '  ◐  Auditing AI memory provenance...' },
     { type: 'blank' },
     { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Provider    ' },
-      { cls: 'term-text', text: ' Claude Code' },
-    ]},
-    { type: 'mixed', parts: [
       { cls: 'term-label', text: '  Entries     ' },
-      { cls: 'term-count', text: ' 47' },
+      { cls: 'term-count', text: ' 90' },
     ]},
     { type: 'mixed', parts: [
       { cls: 'term-label', text: '  Oldest      ' },
@@ -1181,6 +1177,25 @@ const demos = {
     { type: 'mixed', parts: [
       { cls: 'term-label', text: '  Newest      ' },
       { cls: 'term-dim', text: ' 2026-09-20 09:15 UTC' },
+    ]},
+    { type: 'blank' },
+    { type: 'info', text: '  Providers:' },
+    { type: 'blank' },
+    { type: 'mixed', parts: [
+      { cls: 'term-text', text: '  Claude Code        ' },
+      { cls: 'term-count', text: ' 47' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-text', text: '  Cursor             ' },
+      { cls: 'term-count', text: ' 23' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-text', text: '  Codex              ' },
+      { cls: 'term-count', text: ' 12' },
+    ]},
+    { type: 'mixed', parts: [
+      { cls: 'term-text', text: '  Windsurf           ' },
+      { cls: 'term-count', text: '  8' },
     ]},
     { type: 'blank' },
     { type: 'info', text: '  Memory by category:' },
@@ -1205,25 +1220,6 @@ const demos = {
       { n: 10, cls: 'term-dim', ch: '█' },
       { n: 10, cls: 'term-bar-empty', ch: '░' },
     ], suffix: ' 10' },
-    { type: 'blank' },
-    { type: 'info',   text: '  ◐  Auditing Codex memory provenance...' },
-    { type: 'blank' },
-    { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Provider    ' },
-      { cls: 'term-text', text: ' Codex' },
-    ]},
-    { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Entries     ' },
-      { cls: 'term-count', text: ' 12' },
-    ]},
-    { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Oldest      ' },
-      { cls: 'term-dim', text: ' 2026-01-12 09:03 UTC' },
-    ]},
-    { type: 'mixed', parts: [
-      { cls: 'term-label', text: '  Newest      ' },
-      { cls: 'term-dim', text: ' 2026-09-19 22:41 UTC' },
-    ]},
     { type: 'blank' },
     { type: 'info',   text: '  ◐  Analyzing security...' },
     { type: 'blank' },

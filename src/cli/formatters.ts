@@ -485,18 +485,34 @@ export function formatAudit(
   if (providers.length === 0) {
     lines.push(dim('(no memories to audit)'));
     lines.push('');
-  }
+  } else {
+    const totalEntries = providers.reduce((s, p) => s + p.entries, 0);
+    const dates = providers.flatMap((p) => [p.oldest, p.newest]).filter((d): d is string => d != null);
+    const oldest = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+    const newest = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
 
-  for (const p of providers) {
-    lines.push(inProgress(`Auditing ${p.name} memory provenance...`));
+    const categories: Record<string, number> = {};
+    for (const p of providers) {
+      for (const [cat, n] of Object.entries(p.categories)) {
+        categories[cat] = (categories[cat] ?? 0) + n;
+      }
+    }
+
+    lines.push(inProgress('Auditing AI memory provenance...'));
     lines.push('');
-    lines.push(`  Provider    ${chalk.bold.white(p.name)}`);
-    lines.push(`  Entries     ${chalk.white(String(p.entries))}`);
-    lines.push(`  Oldest      ${chalk.white(p.oldest ? formatUtc(p.oldest) : '—')}`);
-    lines.push(`  Newest      ${chalk.white(p.newest ? formatUtc(p.newest) : '—')}`);
+    lines.push(`  Entries     ${chalk.white(String(totalEntries))}`);
+    lines.push(`  Oldest      ${chalk.white(oldest ? formatUtc(oldest) : '—')}`);
+    lines.push(`  Newest      ${chalk.white(newest ? formatUtc(newest) : '—')}`);
     lines.push('');
 
-    const cats = Object.entries(p.categories).sort((a, b) => b[1] - a[1]);
+    lines.push(dim('Providers:'));
+    lines.push('');
+    for (const p of providers) {
+      lines.push(`  ${chalk.bold.white(pad(p.name, 20))} ${chalk.white(String(p.entries))}`);
+    }
+    lines.push('');
+
+    const cats = Object.entries(categories).sort((a, b) => b[1] - a[1]);
     if (cats.length > 0) {
       lines.push(dim('Memory by category:'));
       lines.push('');
@@ -504,10 +520,8 @@ export function formatAudit(
         const label = CATEGORY_LABELS[cat] ?? cat;
         lines.push(`  ${chalk.dim(label.padEnd(14))} ${categoryBar(count)} ${chalk.white(String(count))}`);
       }
-    } else if (p.files > 0) {
-      lines.push(dim(`${p.files} file memor${p.files === 1 ? 'y' : 'ies'}`));
+      lines.push('');
     }
-    lines.push('');
   }
 
   lines.push(inProgress('Analyzing security...'));
