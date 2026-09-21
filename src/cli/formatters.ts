@@ -322,11 +322,16 @@ function credentialLabel(detail: string): string {
 }
 
 function sensitivityMeter(counts: { critical: number; high: number; medium: number }): string {
-  const total = counts.critical + counts.high + counts.medium;
   const width = 20;
-  const filled = Math.max(0, Math.min(width, total));
-  const barColor = counts.critical > 0 ? chalk.red : counts.high > 0 ? chalk.yellow : chalk.dim;
-  const bar = barColor('█'.repeat(filled)) + chalk.dim('░'.repeat(width - filled));
+  const filled = Math.max(0, Math.min(width, counts.critical + counts.high + counts.medium));
+  const crit = Math.min(counts.critical, filled);
+  const high = Math.min(counts.high, filled - crit);
+  const med = Math.min(counts.medium, filled - crit - high);
+  const bar =
+    chalk.red('█'.repeat(crit)) +
+    chalk.yellow('█'.repeat(high)) +
+    chalk.blue('█'.repeat(med)) +
+    chalk.dim('░'.repeat(width - filled));
   const parts = `${counts.critical} critical · ${counts.high} high · ${counts.medium} medium`;
   return `  ${chalk.bold.white('Sensitivity')} ${bar} ${chalk.dim(parts)}`;
 }
@@ -456,10 +461,17 @@ const CATEGORY_LABELS: Record<string, string> = {
   unknown: 'other',
 };
 
-function categoryBar(count: number): string {
+/** Color a category by its risk: credentials red, instructions yellow, rest neutral. */
+function categoryColor(cat: string, text: string): string {
+  if (cat === 'credential') return chalk.red(text);
+  if (cat === 'instruction') return chalk.yellow(text);
+  return chalk.cyan(text);
+}
+
+function categoryBar(cat: string, count: number): string {
   const width = 20;
   const filled = Math.max(0, Math.min(width, count));
-  return chalk.dim('█'.repeat(filled) + '░'.repeat(width - filled));
+  return categoryColor(cat, '█'.repeat(filled)) + chalk.dim('░'.repeat(width - filled));
 }
 
 /** `YYYY-MM-DD HH:MM UTC` for a stored ISO datetime. */
@@ -518,7 +530,7 @@ export function formatAudit(
       lines.push('');
       for (const [cat, count] of cats) {
         const label = CATEGORY_LABELS[cat] ?? cat;
-        lines.push(`  ${chalk.dim(label.padEnd(14))} ${categoryBar(count)} ${chalk.white(String(count))}`);
+        lines.push(`  ${categoryColor(cat, label.padEnd(14))} ${categoryBar(cat, count)} ${chalk.white(String(count))}`);
       }
       lines.push('');
     }
