@@ -8,6 +8,7 @@ import { initDatabase } from '../core/db.js';
 import { startAutoSnapshot } from '../core/autosnapshot.js';
 import { VERSION } from '../version.js';
 import { startWatcher } from '../watcher/watcher.js';
+import { setClientPlatform } from './handlers.js';
 import { TOOLS } from './tools.js';
 
 function wrapResult(result: unknown): { content: { type: 'text'; text: string }[] } {
@@ -52,6 +53,10 @@ export async function startMcpServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // After the initialize handshake, record the client's self-reported name so
+  // memories are stamped with the right platform regardless of install method.
+  setClientPlatform(server.server.getClientVersion()?.name);
 
   // When the client disconnects (stdin closes), stop the watcher + snapshot
   // timer so the process exits cleanly instead of lingering on open handles.

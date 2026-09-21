@@ -17,9 +17,25 @@ const PLATFORMS: SourcePlatform[] = [
   'claude_desktop', 'dsh', 'mem0', 'local_file', 'manual_import', 'unknown',
 ];
 
-/** Which harness is connected. Prefers the explicit M8M_PLATFORM set by
- * `m8m mcp add <client>`; falls back to environment sniffing. */
+// Populated from the MCP `initialize` handshake (clientInfo.name) once the
+// client connects — the most authoritative signal because the client declares
+// itself, regardless of how it was installed.
+let clientPlatform: SourcePlatform | null = null;
+
+/** Record the client's self-reported name from the MCP initialize handshake. */
+export function setClientPlatform(clientInfoName?: string): void {
+  const n = (clientInfoName ?? '').toLowerCase();
+  if (n.includes('deepseek') || n.includes('dsh')) clientPlatform = 'dsh';
+  else if (n.includes('claude')) clientPlatform = 'claude_code';
+  else if (n.includes('cursor')) clientPlatform = 'cursor';
+  else if (n.includes('codex')) clientPlatform = 'local_file';
+  else if (n.includes('chatgpt')) clientPlatform = 'chatgpt_web';
+}
+
+/** Which harness is connected. Prefers the MCP clientInfo name, then the
+ * explicit M8M_PLATFORM config, then environment sniffing. */
 export function detectPlatform(): SourcePlatform {
+  if (clientPlatform) return clientPlatform;
   const explicit = process.env.M8M_PLATFORM;
   if (explicit && (PLATFORMS as string[]).includes(explicit)) return explicit as SourcePlatform;
   if (process.env.CURSOR || process.env.CURSOR_TRACE_ID) return 'cursor';
