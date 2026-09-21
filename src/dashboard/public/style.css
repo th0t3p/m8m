@@ -278,7 +278,10 @@ body {
 }
 
 .btn.ok { background: transparent; border-color: var(--border); color: var(--signal-ok-text); }
-.btn.ok:hover { background: #5c8a6a1f; border-color: var(--signal-ok); }
+.btn.ok:hover {
+  background: color-mix(in srgb, var(--signal-ok) 12%, transparent);
+  border-color: var(--signal-ok);
+}
 
 .chip {
   display: inline-flex;
@@ -831,9 +834,9 @@ tr:hover td { background: var(--surface); }
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   margin-bottom: var(--sp-4);
-  border: 1px solid #c45c5c55;
+  border: 1px solid color-mix(in srgb, var(--signal-crit) 33%, transparent);
   border-radius: var(--r-lg);
-  background: #c45c5c14;
+  background: color-mix(in srgb, var(--signal-crit) 8%, transparent);
   color: var(--text);
   font-size: var(--fs-sm);
 }
@@ -908,7 +911,7 @@ tr:hover td { background: var(--surface); }
 .doc-raw {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   padding: 12px;
   font-family: var(--mono);
   font-size: 12px;
