@@ -36,7 +36,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     name: 'Windsurf',
-    platform: 'local_file',
+    platform: 'windsurf',
     targets: [
       { path: './.windsurfrules', description: 'Project rules' },
       { path: '~/.codeium/windsurf/memories', description: 'Memories directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
@@ -44,7 +44,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     name: 'Cline',
-    platform: 'local_file',
+    platform: 'cline',
     targets: [
       { path: './.clinerules', description: 'Project rules' },
       { path: '~/.cline/memory', description: 'Memory directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
@@ -52,7 +52,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     name: 'Codex',
-    platform: 'local_file',
+    platform: 'codex',
     targets: [
       { path: '~/.codex/config.toml', description: 'Config' },
       { path: '~/.codex/instructions.md', description: 'Global instructions' },
@@ -62,7 +62,7 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     name: 'Aider',
-    platform: 'local_file',
+    platform: 'aider',
     targets: [
       { path: './.aider.conf.yml', description: 'Project config' },
       { path: '~/.aider.conf.yml', description: 'User config' },
@@ -70,15 +70,26 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
   },
   {
     name: 'GitHub Copilot',
-    platform: 'local_file',
+    platform: 'copilot',
     targets: [{ path: './.github/copilot-instructions.md', description: 'Project instructions' }],
   },
   {
     name: 'Continue.dev',
-    platform: 'local_file',
+    platform: 'continue_dev',
     targets: [
       { path: './.continue/config.json', description: 'Project config' },
       { path: '~/.continue/config.json', description: 'User config' },
+    ],
+  },
+  {
+    name: 'CodeBuddy',
+    platform: 'codebuddy',
+    targets: [
+      { path: '~/.codebuddy/CODEBUDDY.md', description: 'User-level instructions' },
+      { path: '~/.codebuddy/rules', description: 'User rules directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
+      { path: '~/.codebuddy/memories', description: 'User memories directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
+      { path: './CODEBUDDY.md', description: 'Project-level instructions' },
+      { path: './.codebuddy/rules', description: 'Project rules directory', isDir: true, extensions: ['.md', '.json', '.txt'] },
     ],
   },
   {

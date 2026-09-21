@@ -32,9 +32,20 @@ const HOME_WATCH_PATHS = [
 
 function inferPlatform(path: string): string {
   const p = path.toLowerCase();
+  if (p.includes('codebuddy')) return 'codebuddy';
   if (p.includes('claude') || p.includes('claude.md')) return 'claude_code';
   if (p.includes('cursor')) return 'cursor';
-  if (p.includes('.agent')) return 'local_file';
+  if (p.includes('windsurf') || p.includes('codeium')) return 'windsurf';
+  if (p.includes('cline')) return 'cline';
+  if (p.includes('codex')) return 'codex';
+  if (p.includes('aider')) return 'aider';
+  if (p.includes('copilot')) return 'copilot';
+  if (p.includes('continue')) return 'continue_dev';
+  if (p.includes('gemini')) return 'gemini';
+  if (p.includes('zed')) return 'zed';
+  if (p.includes('trae')) return 'trae';
+  if (p.includes('goose')) return 'goose';
+  if (p.includes('qoder') || p.includes('qwen')) return 'qoder';
   return 'local_file';
 }
 
@@ -45,10 +56,15 @@ function isConfigFile(path: string): boolean {
 }
 
 function shortProvider(platform: string): string {
-  if (platform === 'claude_code' || platform === 'claude_desktop' || platform === 'claude_web') return 'Claude';
-  if (platform === 'cursor') return 'Cursor';
-  if (platform === 'chatgpt_web') return 'ChatGPT';
-  return 'file';
+  const labels: Record<string, string> = {
+    claude_code: 'Claude', claude_desktop: 'Claude', claude_web: 'Claude',
+    cursor: 'Cursor', chatgpt_web: 'ChatGPT', dsh: 'DeepSeek',
+    codebuddy: 'CodeBuddy', windsurf: 'Windsurf', cline: 'Cline',
+    codex: 'Codex', aider: 'Aider', copilot: 'Copilot', continue_dev: 'Continue',
+    gemini: 'Gemini', zed: 'Zed', trae: 'Trae', goose: 'Goose', qoder: 'Qoder',
+    local_file: 'file', manual_import: 'import', mem0: 'mem0', unknown: 'unknown',
+  };
+  return labels[platform] ?? 'file';
 }
 
 function timeStamp(): string {

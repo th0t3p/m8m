@@ -13,8 +13,38 @@ import {
 import type { MemoryEntry, SourcePlatform, SourceType } from '../core/types.js';
 
 const PLATFORMS: SourcePlatform[] = [
-  'claude_web', 'chatgpt_web', 'claude_code', 'cursor',
-  'claude_desktop', 'dsh', 'mem0', 'local_file', 'manual_import', 'unknown',
+  'claude_web', 'chatgpt_web', 'claude_code', 'claude_desktop', 'cursor',
+  'dsh', 'codebuddy', 'windsurf', 'cline', 'codex', 'aider', 'copilot',
+  'continue_dev', 'gemini', 'zed', 'trae', 'goose', 'qoder',
+  'mem0', 'local_file', 'manual_import', 'unknown',
+];
+
+// Ordered keyword → platform pairs, shared by the clientInfo handshake and the
+// environment fallback. Order matters for tokens that are substrings of others
+// (e.g. `claude_desktop` must precede `claude`). A harness is caught by any of
+// the tokens it is known to expose.
+const PLATFORM_KEYWORDS: Array<{ keyword: string; platform: SourcePlatform }> = [
+  { keyword: 'codebuddy', platform: 'codebuddy' },
+  { keyword: 'deepseek', platform: 'dsh' },
+  { keyword: 'claude-desktop', platform: 'claude_desktop' },
+  { keyword: 'claude_desktop', platform: 'claude_desktop' },
+  { keyword: 'claude', platform: 'claude_code' },
+  { keyword: 'cursor', platform: 'cursor' },
+  { keyword: 'windsurf', platform: 'windsurf' },
+  { keyword: 'codeium', platform: 'windsurf' },
+  { keyword: 'cline', platform: 'cline' },
+  { keyword: 'codex', platform: 'codex' },
+  { keyword: 'aider', platform: 'aider' },
+  { keyword: 'copilot', platform: 'copilot' },
+  { keyword: 'continue', platform: 'continue_dev' },
+  { keyword: 'gemini', platform: 'gemini' },
+  { keyword: 'zed', platform: 'zed' },
+  { keyword: 'trae', platform: 'trae' },
+  { keyword: 'goose', platform: 'goose' },
+  { keyword: 'qoder', platform: 'qoder' },
+  { keyword: 'qwen', platform: 'qoder' },
+  { keyword: 'chatgpt', platform: 'chatgpt_web' },
+  { keyword: 'dsh', platform: 'dsh' },
 ];
 
 // Populated from the MCP `initialize` handshake (clientInfo.name) once the
@@ -25,11 +55,13 @@ let clientPlatform: SourcePlatform | null = null;
 /** Record the client's self-reported name from the MCP initialize handshake. */
 export function setClientPlatform(clientInfoName?: string): void {
   const n = (clientInfoName ?? '').toLowerCase();
-  if (n.includes('deepseek') || n.includes('dsh')) clientPlatform = 'dsh';
-  else if (n.includes('claude')) clientPlatform = 'claude_code';
-  else if (n.includes('cursor')) clientPlatform = 'cursor';
-  else if (n.includes('codex')) clientPlatform = 'local_file';
-  else if (n.includes('chatgpt')) clientPlatform = 'chatgpt_web';
+  if (!n) return;
+  for (const { keyword, platform } of PLATFORM_KEYWORDS) {
+    if (n.includes(keyword)) {
+      clientPlatform = platform;
+      return;
+    }
+  }
 }
 
 /** Which harness is connected. Prefers the MCP clientInfo name, then the
@@ -38,10 +70,16 @@ export function detectPlatform(): SourcePlatform {
   if (clientPlatform) return clientPlatform;
   const explicit = process.env.M8M_PLATFORM;
   if (explicit && (PLATFORMS as string[]).includes(explicit)) return explicit as SourcePlatform;
-  if (process.env.CURSOR || process.env.CURSOR_TRACE_ID) return 'cursor';
-  if (process.env.DSH_HOME || process.env.DSH_SESSION_ID) return 'dsh';
-  if (process.env.CLAUDE_CODE_ENTRYPOINT || process.env.CLAUDECODE) return 'claude_code';
-  if (process.env.CLAUDE_DESKTOP) return 'claude_desktop';
+
+  // Full-environment keyword sniffing: scan every env var NAME (joined and
+  // uppercased) so each harness is caught by whichever token it exposes —
+  // CODEBUDDY_HOME, WINDSURF_*, CLINE_*, CODEX_HOME, AIDER_*, COPILOT_*,
+  // CONTINUE_*, GEMINI_*, ZED_*, TRAE_*, GOOSE_*, QODER_* — without pinning one
+  // exact variable name per harness.
+  const env = Object.keys(process.env).join(' ').toUpperCase();
+  for (const { keyword, platform } of PLATFORM_KEYWORDS) {
+    if (env.includes(keyword.toUpperCase())) return platform;
+  }
   return 'unknown';
 }
 

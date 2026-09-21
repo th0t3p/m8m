@@ -24,7 +24,7 @@ interface ServerSpec {
 // generated config so the server knows its caller deterministically instead of
 // guessing from environment variables.
 const CLIENT_PLATFORM: Record<McpClient, string> = {
-  codex: 'local_file',
+  codex: 'codex',
   claude: 'claude_code',
   cursor: 'cursor',
   dsh: 'dsh',

@@ -5,8 +5,10 @@ export type SourceType =
   | 'tool_output' | 'ai_derived' | 'user_explicit' | 'unknown';
 
 export type SourcePlatform =
-  | 'claude_web' | 'chatgpt_web' | 'claude_code' | 'cursor'
-  | 'claude_desktop' | 'dsh' | 'mem0' | 'local_file' | 'manual_import' | 'unknown';
+  | 'claude_web' | 'chatgpt_web' | 'claude_code' | 'claude_desktop' | 'cursor'
+  | 'dsh' | 'codebuddy' | 'windsurf' | 'cline' | 'codex' | 'aider' | 'copilot'
+  | 'continue_dev' | 'gemini' | 'zed' | 'trae' | 'goose' | 'qoder'
+  | 'mem0' | 'local_file' | 'manual_import' | 'unknown';
 
 export type MemoryStatus = 'active' | 'quarantined' | 'dismissed' | 'deleted';
 
