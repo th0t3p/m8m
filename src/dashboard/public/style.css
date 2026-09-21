@@ -687,9 +687,38 @@ tr:hover td { background: var(--surface); }
 .diff-after { font-size: var(--fs-lg); line-height: 1.45; overflow-wrap: anywhere; }
 .diff-row.deleted .diff-after { color: var(--text-dim); text-decoration: line-through; }
 .diff-meta { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: 6px; }
-.diff-lines { margin: 8px 0 0; max-height: 260px; overflow-y: auto; }
-.diff-lines .diff-del { color: var(--signal-crit-text); }
-.diff-lines .diff-add { color: var(--signal-ok-text); }
+/* Inline line diff. Each line is its own block so the tint spans the full
+   width; context is dimmed and collapses to gaps so changes carry the eye. */
+.diff-block { margin-top: 8px; }
+.diff-lines {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--sp-2) 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+}
+.dl { display: block; padding: 0 var(--sp-3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dl-add {
+  background: color-mix(in srgb, var(--signal-ok) 14%, transparent);
+  color: var(--signal-ok-text);
+}
+.dl-del {
+  background: color-mix(in srgb, var(--signal-crit) 14%, transparent);
+  color: var(--signal-crit-text);
+}
+.dl-ctx { color: var(--text-faint); }
+.dl-gap {
+  display: block;
+  padding: 3px var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-2xs);
+}
+.diff-block .toggle { margin-top: var(--sp-2); }
 
 /* ------------------------------------------------------- empty / skeleton */
 

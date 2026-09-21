@@ -984,6 +984,104 @@ function diffLines(oldText, newText) {
   return out;
 }
 
+/** Windows of ±context lines around each change, merged where they overlap. */
+function diffHunks(lines, context = 2) {
+  const ranges = [];
+  lines.forEach(([sigil], index) => {
+    if (sigil === ' ') return;
+    const start = Math.max(0, index - context);
+    const end = Math.min(lines.length - 1, index + context);
+    const last = ranges[ranges.length - 1];
+    if (last && start <= last.end + 1) last.end = Math.max(last.end, end);
+    else ranges.push({ start, end });
+  });
+  return ranges;
+}
+
+/** Repaints the block with `ranges`; unchanged runs between them collapse to a gap. */
+function renderDiffHunks(pre, lines, ranges) {
+  pre.textContent = '';
+  let previousEnd = -1;
+  for (const range of ranges) {
+    if (previousEnd !== -1 && range.start > previousEnd + 1) {
+      pre.appendChild(el('span', {
+        class: 'dl-gap',
+        text: `⋯ ${range.start - previousEnd - 1} unchanged`,
+      }));
+    }
+    for (let i = range.start; i <= range.end; i++) {
+      const [sigil, line] = lines[i];
+      const kind = sigil === '+' ? 'dl-add' : sigil === '-' ? 'dl-del' : 'dl-ctx';
+      pre.appendChild(el('span', { class: `dl ${kind}`, text: `${sigil} ${line}` }));
+    }
+    previousEnd = range.end;
+  }
+}
+
+/** Whole hunks up to `cap` changed lines, truncating the hunk that crosses it. */
+function diffVisibleRanges(lines, hunks, cap) {
+  const ranges = [];
+  let used = 0;
+  for (const hunk of hunks) {
+    if (used >= cap) break;
+    let end = hunk.start;
+    for (let i = hunk.start; i <= hunk.end; i++) {
+      end = i;
+      if (lines[i][0] !== ' ') used++;
+      if (used >= cap) break;
+    }
+    ranges.push({ start: hunk.start, end });
+  }
+  return ranges;
+}
+
+function countChanged(lines, ranges) {
+  let n = 0;
+  for (const range of ranges) {
+    for (let i = range.start; i <= range.end; i++) if (lines[i][0] !== ' ') n++;
+  }
+  return n;
+}
+
+/** How many hunks stay visible before the "Show N more changes" control.
+ *  A whole-file dump buries the signal, so changed lines carry the view. */
+const DIFF_VISIBLE_CHANGES = 5;
+
+function diffBlock(oldText, newText) {
+  const lines = diffLines(oldText, newText);
+  const hunks = diffHunks(lines);
+  const pre = el('pre', { class: 'diff-lines' });
+  const wrap = el('div', { class: 'diff-block' }, pre);
+
+  if (!hunks.length) {
+    pre.appendChild(el('span', { class: 'dl dl-ctx', text: 'No line-level changes.' }));
+    return wrap;
+  }
+
+  const collapsed = diffVisibleRanges(lines, hunks, DIFF_VISIBLE_CHANGES);
+  const total = countChanged(lines, [{ start: 0, end: lines.length - 1 }]);
+  const remaining = total - countChanged(lines, collapsed);
+
+  renderDiffHunks(pre, lines, collapsed);
+  if (remaining <= 0) return wrap;
+
+  const collapsedLabel = `Show ${remaining} more change${remaining === 1 ? '' : 's'}`;
+  const toggle = el('button', {
+    class: 'toggle',
+    type: 'button',
+    'aria-expanded': 'false',
+    onclick: () => {
+      const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.textContent = expanded ? 'Show fewer changes' : collapsedLabel;
+      renderDiffHunks(pre, lines, expanded ? hunks : collapsed);
+    },
+  }, collapsedLabel);
+
+  wrap.appendChild(toggle);
+  return wrap;
+}
+
 function fileDiffRow(change) {
   const isAdd = change.change_type === 'created';
   const row = el('div', { class: `diff-row ${isAdd ? 'added' : 'modified'}` }, el('div', { class: 'sigil', text: isAdd ? '+' : '~' }));
@@ -992,14 +1090,7 @@ function fileDiffRow(change) {
   body.appendChild(el('div', { class: 'meta' }, highlightMatches(change.file_path, ui.query)));
 
   if (change.old_content !== undefined && change.new_content !== undefined) {
-    const pre = el('pre', { class: 'doc-raw diff-lines' });
-    for (const [sigil, line] of diffLines(change.old_content, change.new_content)) {
-      pre.appendChild(el('span', {
-        class: sigil === '-' ? 'diff-del' : sigil === '+' ? 'diff-add' : '',
-        text: `${sigil === ' ' ? ' ' : sigil} ${line}\n`,
-      }));
-    }
-    body.appendChild(pre);
+    body.appendChild(diffBlock(change.old_content, change.new_content));
   } else {
     body.appendChild(el('div', { class: 'diff-after', text: `+${change.nodes_added} ~${change.nodes_modified} -${change.nodes_deleted} nodes` }));
   }
