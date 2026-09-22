@@ -152,11 +152,12 @@ function updateWatchTarget(path: string, hash: string): void {
     .run(hash, new Date().toISOString(), path);
 }
 
-/** Log a direct agent-memory write (via the MCP server) to stderr, mirroring file-change output. */
-function logDirectMemory(entry: MemoryEntry, verb: string): void {
+/** Log a direct agent-memory write/delete (via the MCP server) to stderr, mirroring file-change output. */
+function logDirectMemory(entry: MemoryEntry, verb: string, sign: '+' | '-' = '+'): void {
   const top = topFlag(entry.flags);
+  const marker = sign === '+' ? chalk.green('+') : chalk.red('-');
   console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white('mcp'.padEnd(10))} memory ${verb}`);
-  console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskAddedLine(entry.content).slice(0, 44))}"`);
+  console.error(`  ${' '.repeat(9)}│ ${marker}  "${chalk.dim(maskAddedLine(entry.content).slice(0, 44))}"`);
   if (top?.severity === 'critical') {
     console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold(`▲ CRITICAL — ${flagLabel(top.type)}`)}`);
   } else if (top?.severity === 'warning') {
@@ -274,10 +275,11 @@ export async function startWatcher(config: M8mConfig): Promise<() => void> {
     }
     for (const c of changes) {
       if (c.detected_by !== 'mcp_live') continue;
-      if (c.change_type !== 'created' && c.change_type !== 'modified') continue;
       const mem = c.memory_id ? getMemory(c.memory_id) : null;
       if (!mem) continue;
-      logDirectMemory(mem, c.change_type === 'created' ? 'stored' : 'updated');
+      if (c.change_type === 'created') logDirectMemory(mem, 'stored', '+');
+      else if (c.change_type === 'modified') logDirectMemory(mem, 'updated', '+');
+      else if (c.change_type === 'deleted') logDirectMemory(mem, 'deleted', '-');
     }
   }, 2000);
 
