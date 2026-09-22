@@ -1,6 +1,5 @@
 // MCP tool call handlers.
 
-import chalk from 'chalk';
 import {
   deleteMemory,
   flagMemory,
@@ -11,7 +10,7 @@ import {
   searchMemories,
   upsertMemory,
 } from '../core/db.js';
-import type { MemoryEntry, MemoryFlag, SourcePlatform, SourceType } from '../core/types.js';
+import type { MemoryEntry, SourcePlatform, SourceType } from '../core/types.js';
 
 const PLATFORMS: SourcePlatform[] = [
   'claude_web', 'chatgpt_web', 'claude_code', 'claude_desktop', 'cursor',
@@ -99,71 +98,6 @@ function sanitize(entry: MemoryEntry): Record<string, unknown> {
   };
 }
 
-function timeStamp(): string {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
-/** Humanize a flag type ("contains_credential" → "credential detected"). */
-function flagLabel(type: string): string {
-  const labels: Record<string, string> = {
-    contains_credential: 'credential detected',
-    contains_email: 'email detected',
-    contains_url: 'URL detected',
-    contains_instruction: 'instruction detected',
-    contradicts_existing: 'contradiction detected',
-    hidden_character: 'hidden character detected',
-    source_unknown: 'unknown source',
-  };
-  return labels[type] ?? type;
-}
-
-/** Mask secrets/emails in a stored memory before echoing it to stderr. */
-function maskSecrets(text: string): string {
-  const patterns = [
-    /\bAKIA[0-9A-Z]{16}\b/,
-    /\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/,
-    /\bgh[pous]_[A-Za-z0-9]{20,}\b/,
-    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
-  ];
-  for (const p of patterns) {
-    text = text.replace(p, (m) => {
-      if (m.includes('@')) {
-        const at = m.indexOf('@');
-        return `${m.slice(0, Math.min(2, at))}****@${m.slice(at + 1)}`;
-      }
-      if (m.length <= 8) return `${m.slice(0, 2)}****`;
-      return `${m.slice(0, 6)}****…${m.slice(-4)}`;
-    });
-  }
-  return text;
-}
-
-function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
-  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
-  let top: MemoryFlag | null = null;
-  for (const f of flags) {
-    if (!top || (order[f.severity ?? 'info'] ?? 2) < (order[top.severity ?? 'info'] ?? 2)) top = f;
-  }
-  return top;
-}
-
-/** Log a direct memory write to stderr so `m8m mcp` shows it alongside file changes. */
-function logMemoryWrite(entry: MemoryEntry): void {
-  const top = topFlag(entry.flags);
-  console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white('mcp'.padEnd(10))} memory stored`);
-  console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskSecrets(entry.content).slice(0, 44))}"`);
-  if (top?.severity === 'critical') {
-    console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold(`▲ CRITICAL — ${flagLabel(top.type)}`)}`);
-  } else if (top?.severity === 'warning') {
-    console.error(`  ${' '.repeat(9)}│ ${chalk.yellow(`▲ WARNING — ${flagLabel(top.type)}`)}`);
-  } else {
-    console.error(`  ${' '.repeat(9)}│ ${chalk.dim('○ clean')}`);
-  }
-  console.error(`  ${' '.repeat(9)}│`);
-}
-
 export function handleStore(params: {
   content: string;
   source_type?: SourceType;
@@ -178,7 +112,6 @@ export function handleStore(params: {
     },
     'mcp_live',
   );
-  logMemoryWrite(entry);
   return { id: entry.id, flags: entry.flags.map((f) => f.type), trust_level: entry.trust_level };
 }
 

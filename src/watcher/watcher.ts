@@ -5,11 +5,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import chokidar from 'chokidar';
 import chalk from 'chalk';
-import { getAllDocuments, getDb, getDocumentByPath } from '../core/db.js';
+import { getAllDocuments, getChangelog, getDb, getDocumentByPath, getMemory } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
 import { importFileAsDocument } from '../core/importer.js';
 import { expandHome } from '../core/config.js';
-import type { M8mConfig, MemoryFlag, SourcePlatform } from '../core/types.js';
+import type { M8mConfig, MemoryEntry, MemoryFlag, SourcePlatform } from '../core/types.js';
 import { detectFileFormat } from './parsers.js';
 import { header, watching } from '../cli/ui.js';
 
@@ -82,6 +82,16 @@ function firstAddedLine(oldContent: string, newContent: string): string {
   return '';
 }
 
+/** First line in the old content that isn't in the new content (rough "removed" preview). */
+function firstRemovedLine(oldContent: string, newContent: string): string {
+  if (!newContent) return oldContent.split('\n')[0] ?? '';
+  const newLines = new Set(newContent.split('\n'));
+  for (const line of oldContent.split('\n')) {
+    if (!newLines.has(line)) return line;
+  }
+  return '';
+}
+
 /** Most-severe flag, or null when the file is clean. */
 function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
   const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
@@ -142,6 +152,21 @@ function updateWatchTarget(path: string, hash: string): void {
     .run(hash, new Date().toISOString(), path);
 }
 
+/** Log a direct agent-memory write (via the MCP server) to stderr, mirroring file-change output. */
+function logDirectMemory(entry: MemoryEntry, verb: string): void {
+  const top = topFlag(entry.flags);
+  console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white('mcp'.padEnd(10))} memory ${verb}`);
+  console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskAddedLine(entry.content).slice(0, 44))}"`);
+  if (top?.severity === 'critical') {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold(`▲ CRITICAL — ${flagLabel(top.type)}`)}`);
+  } else if (top?.severity === 'warning') {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.yellow(`▲ WARNING — ${flagLabel(top.type)}`)}`);
+  } else {
+    console.error(`  ${' '.repeat(9)}│ ${chalk.dim('○ clean')}`);
+  }
+  console.error(`  ${' '.repeat(9)}│`);
+}
+
 function handleFileChange(path: string, platform: string): void {
   // Skip binary plugin state (SQLite DBs) and config files — only memory files
   // (markdown/json/txt/rules files) should be imported on change.
@@ -165,11 +190,13 @@ function handleFileChange(path: string, platform: string): void {
   const flags = getDocumentByPath(path)?.flags_summary ?? [];
   const top = topFlag(flags);
   const added = firstAddedLine(oldContent, content);
+  const removed = firstRemovedLine(oldContent, content);
   const file = basename(path);
   const provider = shortProvider(platform);
 
   console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white(provider.padEnd(10))} ${file} modified`);
   if (added) console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskAddedLine(added).slice(0, 44))}"`);
+  if (removed) console.error(`  ${' '.repeat(9)}│ ${chalk.red('-')}  "${chalk.dim(maskAddedLine(removed).slice(0, 44))}"`);
   if (top?.severity === 'critical') {
     console.error(`  ${' '.repeat(9)}│ ${chalk.red.bold(`▲ CRITICAL — ${flagLabel(top.type)}`)}`);
   } else if (top?.severity === 'warning') {
@@ -237,7 +264,25 @@ export async function startWatcher(config: M8mConfig): Promise<() => void> {
   console.error('');
   console.error(watching('watching...'));
 
+  // Poll the changelog so direct agent-memory writes (via the MCP server) also
+  // show up here — the standalone watcher and the MCP server share one DB.
+  let lastSeen = new Date().toISOString();
+  const poll = setInterval(() => {
+    const changes = getChangelog({ since: lastSeen });
+    if (changes.length > 0) {
+      lastSeen = new Date(new Date(changes[0].changed_at).getTime() + 1).toISOString();
+    }
+    for (const c of changes) {
+      if (c.detected_by !== 'mcp_live') continue;
+      if (c.change_type !== 'created' && c.change_type !== 'modified') continue;
+      const mem = c.memory_id ? getMemory(c.memory_id) : null;
+      if (!mem) continue;
+      logDirectMemory(mem, c.change_type === 'created' ? 'stored' : 'updated');
+    }
+  }, 2000);
+
   return () => {
+    clearInterval(poll);
     void watcher.close();
   };
 }
