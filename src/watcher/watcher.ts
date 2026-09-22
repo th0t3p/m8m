@@ -74,7 +74,7 @@ function timeStamp(): string {
 }
 
 /** First line in the new content that isn't in the old content (rough "added" preview). */
-function firstAddedLine(oldContent: string, newContent: string): string {
+export function firstAddedLine(oldContent: string, newContent: string): string {
   if (!oldContent) return newContent.split('\n')[0] ?? '';
   const oldLines = new Set(oldContent.split('\n'));
   for (const line of newContent.split('\n')) {
@@ -84,7 +84,7 @@ function firstAddedLine(oldContent: string, newContent: string): string {
 }
 
 /** First line in the old content that isn't in the new content (rough "removed" preview). */
-function firstRemovedLine(oldContent: string, newContent: string): string {
+export function firstRemovedLine(oldContent: string, newContent: string): string {
   if (!newContent) return oldContent.split('\n')[0] ?? '';
   const newLines = new Set(newContent.split('\n'));
   for (const line of oldContent.split('\n')) {
@@ -94,7 +94,7 @@ function firstRemovedLine(oldContent: string, newContent: string): string {
 }
 
 /** Most-severe flag, or null when the file is clean. */
-function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
+export function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
   const order: Record<string, number> = { critical: 0, warning: 1, info: 2 };
   let top: MemoryFlag | null = null;
   for (const f of flags) {
@@ -104,7 +104,7 @@ function topFlag(flags: MemoryFlag[]): MemoryFlag | null {
 }
 
 /** Humanize a flag type ("contains_credential" → "credential detected"). */
-function flagLabel(type: string): string {
+export function flagLabel(type: string): string {
   const labels: Record<string, string> = {
     contains_credential: 'credential detected',
     contains_email: 'email detected',
@@ -118,7 +118,7 @@ function flagLabel(type: string): string {
 }
 
 /** Mask any secret/email in an added line so the watcher never re-prints plaintext. */
-function maskAddedLine(line: string): string {
+export function maskAddedLine(line: string): string {
   const patterns = [
     /\bAKIA[0-9A-Z]{16}\b/,
     /\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/,
