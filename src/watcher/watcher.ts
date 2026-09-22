@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import { getAllDocuments, getChangelog, getDb, getDocumentByPath, getMemory } from '../core/db.js';
 import { hashContent } from '../core/hasher.js';
 import { importFileAsDocument } from '../core/importer.js';
+import { analyzeEntry } from '../core/analyzer.js';
 import { expandHome } from '../core/config.js';
 import type { M8mConfig, MemoryEntry, MemoryFlag, SourcePlatform } from '../core/types.js';
 import { detectFileFormat } from './parsers.js';
@@ -188,12 +189,20 @@ function handleFileChange(path: string, platform: string): void {
   const result = importFileAsDocument(path, null, platform as SourcePlatform, 'file_watcher');
   updateWatchTarget(path, hash);
 
-  const flags = getDocumentByPath(path)?.flags_summary ?? [];
-  const top = topFlag(flags);
   const added = firstAddedLine(oldContent, content);
   const removed = firstRemovedLine(oldContent, content);
   const file = basename(path);
   const provider = shortProvider(platform);
+
+  // Severity of the *edit*, not the whole file — files like AGENTS.md are full
+  // of rules, so their aggregate flag always reads "instruction detected" even
+  // for a benign edit.
+  const changedFlags: MemoryFlag[] = [];
+  for (const line of [added, removed]) {
+    if (!line) continue;
+    changedFlags.push(...analyzeEntry(line, [], undefined, platform).flags);
+  }
+  const top = topFlag(changedFlags);
 
   console.error(`  ${chalk.dim(timeStamp())} │ ${chalk.bold.white(provider.padEnd(10))} ${file} modified`);
   if (added) console.error(`  ${' '.repeat(9)}│ ${chalk.green('+')}  "${chalk.dim(maskAddedLine(added).slice(0, 44))}"`);
